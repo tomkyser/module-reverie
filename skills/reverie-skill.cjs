@@ -31,7 +31,7 @@ Show the user Reverie's current state and offer session management actions.
 
 ## Steps
 
-1. Run \`bun run core/sdk/pulley/pulley.cjs reverie status\` to get Reverie operational state
+1. Run \`bun bin/dynamo.cjs reverie status\` to get Reverie operational state
 2. Present to the user:
    - Current operational mode (Active/Passive/REM/Dormant)
    - Session topology: which sessions are running (Primary/Secondary/Tertiary)
@@ -42,9 +42,9 @@ Show the user Reverie's current state and offer session management actions.
    - If Dormant: "Would you like to start a Reverie session?"
    - If Active: "You have an active triplet. Want to inspect memory, view status details, or stop the session?"
    - If Passive: "Running in Passive mode (Primary + Secondary only). Want to upgrade to Active mode?"
-4. If user wants to start: run \`bun run core/sdk/pulley/pulley.cjs reverie start\`
-5. If user wants to inspect: run \`bun run core/sdk/pulley/pulley.cjs reverie inspect <target>\` with appropriate target
-6. If user wants to stop: run \`bun run core/sdk/pulley/pulley.cjs reverie stop\`
+4. If user wants to start: run \`bun bin/dynamo.cjs reverie start\`
+5. If user wants to inspect: run \`bun bin/dynamo.cjs reverie inspect <target>\` with appropriate target
+6. If user wants to stop: run \`bun bin/dynamo.cjs reverie stop\`
 
 Present results conversationally. This is the friendly human interface -- show personality, not just data.`;
 

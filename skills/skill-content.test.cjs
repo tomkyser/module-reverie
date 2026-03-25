@@ -51,8 +51,8 @@ describe('dynamo-skill', function () {
   });
 
   it('content references Pulley CLI commands per D-03', function () {
-    expect(DYNAMO_SKILL_CONTENT).toContain('pulley.cjs status');
-    expect(DYNAMO_SKILL_CONTENT).toContain('pulley.cjs health');
+    expect(DYNAMO_SKILL_CONTENT).toContain('dynamo.cjs status');
+    expect(DYNAMO_SKILL_CONTENT).toContain('dynamo.cjs health');
   });
 
   it('content covers platform health topics per D-01', function () {
@@ -97,10 +97,10 @@ describe('reverie-skill', function () {
   });
 
   it('content references Pulley CLI commands per D-03', function () {
-    expect(REVERIE_SKILL_CONTENT).toContain('pulley.cjs reverie status');
-    expect(REVERIE_SKILL_CONTENT).toContain('pulley.cjs reverie start');
-    expect(REVERIE_SKILL_CONTENT).toContain('pulley.cjs reverie inspect');
-    expect(REVERIE_SKILL_CONTENT).toContain('pulley.cjs reverie stop');
+    expect(REVERIE_SKILL_CONTENT).toContain('dynamo.cjs reverie status');
+    expect(REVERIE_SKILL_CONTENT).toContain('dynamo.cjs reverie start');
+    expect(REVERIE_SKILL_CONTENT).toContain('dynamo.cjs reverie inspect');
+    expect(REVERIE_SKILL_CONTENT).toContain('dynamo.cjs reverie stop');
   });
 
   it('content covers session management topics per D-02', function () {

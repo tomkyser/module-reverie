@@ -30,8 +30,8 @@ Show the user a conversational summary of the Dynamo platform state.
 
 ## Steps
 
-1. Run \`bun run core/sdk/pulley/pulley.cjs status\` to get platform status
-2. Run \`bun run core/sdk/pulley/pulley.cjs health\` to get service health
+1. Run \`bun bin/dynamo.cjs status\` to get platform status
+2. Run \`bun bin/dynamo.cjs health\` to get service health
 3. Present to the user:
    - Platform lifecycle state (running/stopped/error)
    - Loaded modules and their registration status
