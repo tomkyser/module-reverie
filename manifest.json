@@ -1,0 +1,21 @@
+{
+  "name": "reverie",
+  "version": "0.1.0",
+  "description": "Cognitive memory system -- persistent, evolving AI memory through fragment-based recall, Self Model personality, and REM consolidation",
+  "main": "reverie.cjs",
+  "enabled": true,
+  "dependencies": {
+    "services": ["switchboard", "lathe", "magnet", "wire", "conductor", "assay", "exciter"],
+    "providers": ["journal", "lithograph"]
+  },
+  "hooks": {
+    "SessionStart": true,
+    "UserPromptSubmit": true,
+    "PreToolUse": true,
+    "PostToolUse": true,
+    "Stop": true,
+    "PreCompact": true,
+    "SubagentStart": true,
+    "SubagentStop": true
+  }
+}
