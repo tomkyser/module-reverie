@@ -110,6 +110,7 @@ const DEFAULT_SESSION_CONFIG = Object.freeze({
   secondary_model: 'opus',
   tertiary_model: 'sonnet',
   max_sublimation_intake: 5,
+  max_triplets: 3,  // D-09: configurable concurrent triplet cap
   passive_secondary_capabilities: Object.freeze(['attention', 'face_prompt', 'hook_monitor']),
 });
 

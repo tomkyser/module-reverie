@@ -24,6 +24,8 @@ const {
   TOPOLOGY_RULES,
 } = require('./session-config.cjs');
 const { MESSAGE_TYPES, URGENCY_LEVELS } = require('../../../../core/services/wire/protocol.cjs');
+const { generateTripletId, makeTripletSessionId, extractShortHash } = require('./triplet.cjs');
+const { setTerminalTitle, formatPrefix, ROLE_LABELS } = require('./visual-markers.cjs');
 
 /**
  * Creates a Session Manager instance.
@@ -45,6 +47,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
   let _state = SESSION_STATES.UNINITIALIZED;
   let _secondarySessionId = null;
   let _tertiarySessionId = null;
+  let _tripletId = null;
   const _config = config;
 
   // ---------------------------------------------------------------------------
@@ -68,7 +71,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
     _state = targetState;
 
     if (switchboard) {
-      switchboard.emit('session:state-changed', { from, to: targetState });
+      switchboard.emit('session:state-changed', { from, to: targetState, triplet_id: _tripletId });
     }
 
     return ok({ from, to: targetState });
@@ -93,8 +96,10 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
       return startResult;
     }
 
-    // Generate session ID for Secondary
-    const sessionId = 'reverie-secondary-' + Date.now();
+    // Generate triplet ID for this session group (D-06)
+    _tripletId = generateTripletId();
+    const shortHash = extractShortHash(_tripletId);
+    const sessionId = makeTripletSessionId(_tripletId, 'secondary');
 
     // Spawn Secondary via Conductor
     const spawnResult = conductor.spawnSession({
@@ -102,7 +107,9 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
       identity: SESSION_IDENTITIES.SECONDARY,
       env: {
         SESSION_IDENTITY: 'secondary',
+        TRIPLET_ID: _tripletId,
         MODEL: _config.secondary_model,
+        DISPLAY_PREFIX: formatPrefix(ROLE_LABELS.secondary, shortHash),
       },
     });
 
@@ -124,7 +131,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
     // Transition to PASSIVE
     _transition(SESSION_STATES.PASSIVE);
 
-    return ok({ state: _state, secondary: _secondarySessionId });
+    return ok({ state: _state, secondary: _secondarySessionId, triplet_id: _tripletId });
   }
 
   /**
@@ -144,8 +151,9 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
       return upgradeResult;
     }
 
-    // Generate session ID for Tertiary
-    const sessionId = 'reverie-tertiary-' + Date.now();
+    // Generate session ID for Tertiary using triplet namespace (D-06)
+    const shortHash = extractShortHash(_tripletId);
+    const sessionId = makeTripletSessionId(_tripletId, 'tertiary');
 
     // Spawn Tertiary via Conductor
     const spawnResult = conductor.spawnSession({
@@ -153,7 +161,9 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
       identity: SESSION_IDENTITIES.TERTIARY,
       env: {
         SESSION_IDENTITY: 'tertiary',
+        TRIPLET_ID: _tripletId,
         MODEL: _config.tertiary_model,
+        DISPLAY_PREFIX: formatPrefix(ROLE_LABELS.tertiary, shortHash),
       },
     });
 
@@ -208,6 +218,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
       state: _state,
       secondary: _secondarySessionId,
       tertiary: _tertiarySessionId,
+      triplet_id: _tripletId,
     });
   }
 
@@ -303,6 +314,8 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
       _secondarySessionId = null;
     }
 
+    _tripletId = null;
+
     return ok({ state: _state });
   }
 
@@ -334,6 +347,8 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
       _secondarySessionId = null;
     }
 
+    _tripletId = null;
+
     // Transition to STOPPED
     _transition(SESSION_STATES.STOPPED);
 
@@ -350,6 +365,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
       state: _state,
       secondary: _secondarySessionId,
       tertiary: _tertiarySessionId,
+      triplet_id: _tripletId,
       config: _config,
     };
   }
