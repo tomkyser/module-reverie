@@ -343,10 +343,15 @@ function register(facade) {
   // -------------------------------------------------------------------------
 
   // Register skills via Exciter if registerSkill is available (per D-05)
+  // Skill registration is async (routes through Lathe) — fire and collect promises
   if (exciter && typeof exciter.registerSkill === 'function') {
-    registerDynamoSkill(exciter);
-    registerReverieSkill(exciter);
-    registerValidateSkill(exciter);
+    const skillPromises = [
+      registerDynamoSkill(exciter),
+      registerReverieSkill(exciter),
+      registerValidateSkill(exciter),
+    ];
+    // Settle all — skill write failure is non-fatal for module registration
+    Promise.allSettled(skillPromises);
   }
 
   // Create hook handlers (lathe + dataDir needed for Stop snapshot writes)

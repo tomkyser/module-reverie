@@ -149,30 +149,33 @@ describe('SC-2: Hook handlers fire through Exciter/Armature', () => {
 // ---------------------------------------------------------------------------
 
 describe('SC-3: Skills registered and accessible', () => {
-  it('registerSkill creates SKILL.md file', () => {
+  it('registerSkill creates SKILL.md file', async () => {
     const { createExciter } = require('../../../core/services/exciter/exciter.cjs');
     const exciterResult = createExciter();
     const exciter = exciterResult.value;
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dynamo-skills-'));
     try {
-      let writtenPath = null;
       let writtenContent = null;
       const mockSwitchboard = { on: () => {}, off: () => {}, emit: () => {} };
       const mockLathe = {
-        writeFileSync: (p, c) => {
-          writtenPath = p;
+        async writeFile(p, c) {
           writtenContent = c;
-          // Actually write the file so the skill manager can verify
           const dir = path.dirname(p);
           fs.mkdirSync(dir, { recursive: true });
           fs.writeFileSync(p, c);
           return { ok: true, value: undefined };
         },
-        readFileSync: () => ({ ok: true, value: '' }),
-        mkdirSync: (p) => { fs.mkdirSync(p, { recursive: true }); },
+        async exists(p) { return { ok: true, value: fs.existsSync(p) }; },
+        deleteFile(p) { try { fs.unlinkSync(p); return { ok: true }; } catch (_e) { return { ok: false }; } },
+        listDir(p) {
+          try {
+            const entries = fs.readdirSync(p, { withFileTypes: true });
+            return { ok: true, value: entries.map(e => ({ name: e.name, isFile: e.isFile(), isDirectory: e.isDirectory() })) };
+          } catch (_e) { return { ok: false, error: { code: 'DIR_NOT_FOUND' } }; }
+        },
       };
       exciter.init({ switchboard: mockSwitchboard, lathe: mockLathe, config: { projectRoot: tmpDir } });
-      const result = exciter.registerSkill(
+      const result = await exciter.registerSkill(
         'test-skill',
         { description: 'A test skill', content: '# Test\nDo something.' },
         tmpDir

@@ -6,7 +6,7 @@
  * Declares the module's identity, entry point, and all platform
  * dependencies required across the full Reverie lifecycle (Phases 7-12).
  *
- * Per D-04: All 9 services + 2 providers are declared upfront.
+ * Per D-04: All 10 services + 3 providers are declared upfront.
  * Not all are used in Phase 7 but the manifest is the truth contract.
  *
  * Validated via Circuit's validateModuleManifest() at registration time.
@@ -30,10 +30,12 @@ const REVERIE_MANIFEST = {
       'relay',
       'conductor',
       'assay',
+      'exciter',
     ],
     providers: [
       'ledger',
       'journal',
+      'lithograph',
     ],
   },
   hooks: {
