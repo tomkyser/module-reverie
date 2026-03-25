@@ -50,6 +50,11 @@ const { createTaxonomyGovernor } = require('./components/taxonomy/taxonomy-gover
 const { createBackfillPipeline } = require('./components/formation/backfill-pipeline.cjs');
 const { registerReverieCommands } = require('./components/cli/register-commands.cjs');
 
+// Phase 12.1: Skill registration
+const { registerDynamoSkill } = require('./skills/dynamo-skill.cjs');
+const { registerReverieSkill } = require('./skills/reverie-skill.cjs');
+const { registerValidateSkill } = require('./skills/validate-skill.cjs');
+
 /**
  * Registers the Reverie module with the Circuit API.
  *
@@ -333,6 +338,17 @@ function register(facade) {
     registerReverieCommands(facade, cliContext);
   }
 
+  // -------------------------------------------------------------------------
+  // Phase 12.1: Skill registration (INT-02 extension, D-01 through D-05)
+  // -------------------------------------------------------------------------
+
+  // Register skills via Exciter if registerSkill is available (per D-05)
+  if (exciter && typeof exciter.registerSkill === 'function') {
+    registerDynamoSkill(exciter);
+    registerReverieSkill(exciter);
+    registerValidateSkill(exciter);
+  }
+
   // Create hook handlers (lathe + dataDir needed for Stop snapshot writes)
   // Phase 9: formation pipeline and recall engine wired for formation triggers and recall injection
   // Phase 10: session manager, wire topology, and mode manager for three-session lifecycle
@@ -384,6 +400,7 @@ function register(facade) {
     taxonomy: taxonomyGovernor,    // Phase 12: taxonomy governance
     backfill: backfillPipeline,    // Phase 12: historical data backfill
     cli: true,                     // Phase 12: CLI commands registered
+    skills: true,                  // Phase 12.1: skill registration
   };
 }
 
