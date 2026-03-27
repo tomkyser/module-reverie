@@ -149,6 +149,70 @@ describe('Reverie CLI Status', function () {
       expect(parsed.fragments).toBeDefined();
     });
 
+    it('returns real domain_count from wire.query when domains exist', function () {
+      // Inject mock wire with specific domain data including archived entries
+      const ctx = Object.assign({}, mockContext, {
+        wire: {
+          query: function (table) {
+            if (table === 'domains') {
+              return {
+                ok: true,
+                value: [
+                  { name: 'tech', archived: false },
+                  { name: 'personal', archived: false },
+                  { name: 'old', archived: true },
+                ],
+              };
+            }
+            return { ok: true, value: [] };
+          },
+        },
+      });
+      const handler = createStatusHandler(ctx);
+      const result = handler.handle([], {});
+      expect(result.ok).toBe(true);
+      // Filters out archived domains: 3 total, 1 archived -> 2 active
+      expect(result.value.json.domain_count).toBe(2);
+    });
+
+    it('returns real association_index_size from wire.query when associations exist', function () {
+      // Inject mock wire with specific association data
+      const ctx = Object.assign({}, mockContext, {
+        wire: {
+          query: function (table) {
+            if (table === 'associations') {
+              return {
+                ok: true,
+                value: [
+                  { source: 'a', target: 'b' },
+                  { source: 'c', target: 'd' },
+                ],
+              };
+            }
+            return { ok: true, value: [] };
+          },
+        },
+      });
+      const handler = createStatusHandler(ctx);
+      const result = handler.handle([], {});
+      expect(result.ok).toBe(true);
+      expect(result.value.json.association_index_size).toBe(2);
+    });
+
+    it('returns 0 for domain_count and association_index_size when wire.query returns empty arrays', function () {
+      // Wire returns ok with empty arrays -- default 0 is correct, not hardcoded
+      const ctx = Object.assign({}, mockContext, {
+        wire: {
+          query: function () { return { ok: true, value: [] }; },
+        },
+      });
+      const handler = createStatusHandler(ctx);
+      const result = handler.handle([], {});
+      expect(result.ok).toBe(true);
+      expect(result.value.json.domain_count).toBe(0);
+      expect(result.value.json.association_index_size).toBe(0);
+    });
+
     it('works with null modeManager (returns unknown mode)', function () {
       const ctx = Object.assign({}, mockContext, { modeManager: null });
       const handler = createStatusHandler(ctx);
