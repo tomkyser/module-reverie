@@ -23,15 +23,16 @@ const { ok, err } = require('../../../../lib/result.cjs');
 // ---------------------------------------------------------------------------
 
 /**
- * Checks for --confirm flag presence in process.argv.
+ * Checks for --confirm flag presence in the flags parameter from Pulley.
  *
- * Per the plan note: Pulley only parses --json/--raw/--help. Custom flags
- * like --confirm are NOT automatically parsed. Check process.argv directly.
+ * Pulley now parses --confirm and passes it through to handlers via
+ * the values object. No process.argv read needed.
  *
+ * @param {Object} flags - Parsed flags from Pulley route()
  * @returns {import('../../../../lib/result.cjs').Err|null} Error result if not confirmed, null if confirmed
  */
-function _requireConfirm() {
-  const hasConfirm = process.argv.includes('--confirm');
+function _requireConfirm(flags) {
+  const hasConfirm = flags && flags.confirm;
   if (!hasConfirm) {
     return err('CONFIRM_REQUIRED', 'This operation is destructive. Add --confirm to proceed.', {
       hint: 'dynamo reverie reset <scope> --confirm',
@@ -100,11 +101,11 @@ function createResetHandlers(context) {
    * Emits 'reverie:reset:fragments' event on completion.
    *
    * @param {string[]} args - Positional arguments (unused)
-   * @param {Object} flags - Command flags (unused -- confirm checked via process.argv)
+   * @param {Object} flags - Command flags from Pulley (includes confirm)
    * @returns {Promise<import('../../../../lib/result.cjs').Result<{human: string, json: Object, raw: string}>>}
    */
   async function handleResetFragments(args, flags) {
-    const confirmErr = _requireConfirm();
+    const confirmErr = _requireConfirm(flags);
     if (confirmErr) return confirmErr;
 
     const count = await _deleteAllFragments();
@@ -131,11 +132,11 @@ function createResetHandlers(context) {
    * Emits 'reverie:reset:self-model' event on completion.
    *
    * @param {string[]} args - Positional arguments (unused)
-   * @param {Object} flags - Command flags (unused)
+   * @param {Object} flags - Command flags from Pulley (includes confirm)
    * @returns {import('../../../../lib/result.cjs').Result<{human: string, json: Object, raw: string}>}
    */
   function handleResetSelfModel(args, flags) {
-    const confirmErr = _requireConfirm();
+    const confirmErr = _requireConfirm(flags);
     if (confirmErr) return confirmErr;
 
     _selfModel.coldStart();
@@ -163,11 +164,11 @@ function createResetHandlers(context) {
    * Emits 'reverie:reset:all' event on completion.
    *
    * @param {string[]} args - Positional arguments (unused)
-   * @param {Object} flags - Command flags (unused)
+   * @param {Object} flags - Command flags from Pulley (includes confirm)
    * @returns {Promise<import('../../../../lib/result.cjs').Result<{human: string, json: Object, raw: string}>>}
    */
   async function handleResetAll(args, flags) {
-    const confirmErr = _requireConfirm();
+    const confirmErr = _requireConfirm(flags);
     if (confirmErr) return confirmErr;
 
     // Reset fragments

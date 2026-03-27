@@ -141,11 +141,9 @@ function registerReverieCommands(circuitApi, context) {
         return err('FILE_NOT_FOUND', 'Could not read file: ' + filePath);
       }
 
-      const isDryRun = process.argv.includes('--dry-run');
-      const limitIdx = process.argv.indexOf('--limit');
-      const limit = limitIdx >= 0 ? parseInt(process.argv[limitIdx + 1], 10) : null;
-      const batchIdx = process.argv.indexOf('--batch-size');
-      const batchSize = batchIdx >= 0 ? parseInt(process.argv[batchIdx + 1], 10) : undefined;
+      const isDryRun = flags['dry-run'] || false;
+      const limit = flags.limit ? parseInt(String(flags.limit), 10) : null;
+      const batchSize = flags['batch-size'] ? parseInt(String(flags['batch-size']), 10) : undefined;
 
       if (isDryRun) {
         var dryResult = context.backfillPipeline.dryRun(fileContent);

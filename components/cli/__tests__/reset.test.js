@@ -1,6 +1,6 @@
 'use strict';
 
-const { describe, it, expect, beforeEach, afterEach } = require('bun:test');
+const { describe, it, expect, beforeEach } = require('bun:test');
 
 /**
  * Tests for reset subcommand handlers (D-04).
@@ -70,25 +70,11 @@ function createMockContext() {
 }
 
 // ---------------------------------------------------------------------------
-// process.argv manipulation for --confirm
+// Flag helpers for --confirm via Pulley flags parameter
 // ---------------------------------------------------------------------------
 
-let originalArgv;
-
-function setConfirmFlag(present) {
-  originalArgv = process.argv;
-  if (present) {
-    process.argv = [...originalArgv, '--confirm'];
-  } else {
-    process.argv = originalArgv.filter(a => a !== '--confirm');
-  }
-}
-
-function restoreArgv() {
-  if (originalArgv) {
-    process.argv = originalArgv;
-    originalArgv = undefined;
-  }
+function flagsWith(confirm) {
+  return confirm ? { confirm: true } : {};
 }
 
 // ---------------------------------------------------------------------------
@@ -104,10 +90,6 @@ describe('reset.cjs', () => {
     handlers = createResetHandlers(context);
   });
 
-  afterEach(() => {
-    restoreArgv();
-  });
-
   describe('createResetHandlers', () => {
     it('returns an object with three handler functions', () => {
       expect(typeof handlers.handleResetFragments).toBe('function');
@@ -118,35 +100,30 @@ describe('reset.cjs', () => {
 
   describe('handleResetFragments', () => {
     it('returns CONFIRM_REQUIRED error without --confirm', async () => {
-      setConfirmFlag(false);
-      const result = await handlers.handleResetFragments([], {});
+      const result = await handlers.handleResetFragments([], flagsWith(false));
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('CONFIRM_REQUIRED');
     });
 
     it('error message includes instruction text', async () => {
-      setConfirmFlag(false);
-      const result = await handlers.handleResetFragments([], {});
+      const result = await handlers.handleResetFragments([], flagsWith(false));
       expect(result.error.message).toContain('--confirm');
     });
 
     it('returns ok with fragment count when --confirm is present', async () => {
-      setConfirmFlag(true);
-      const result = await handlers.handleResetFragments([], {});
+      const result = await handlers.handleResetFragments([], flagsWith(true));
       expect(result.ok).toBe(true);
       expect(result.value.json).toHaveProperty('reset', 'fragments');
       expect(result.value.json).toHaveProperty('count', 3);
     });
 
     it('deletes all fragments via fragmentWriter', async () => {
-      setConfirmFlag(true);
-      await handlers.handleResetFragments([], {});
+      await handlers.handleResetFragments([], flagsWith(true));
       expect(context.fragmentWriter._deletedIds.length).toBe(3);
     });
 
     it('returns { human, json, raw } output modes', async () => {
-      setConfirmFlag(true);
-      const result = await handlers.handleResetFragments([], {});
+      const result = await handlers.handleResetFragments([], flagsWith(true));
       expect(result.ok).toBe(true);
       expect(typeof result.value.human).toBe('string');
       expect(result.value.json).toBeDefined();
@@ -156,28 +133,24 @@ describe('reset.cjs', () => {
 
   describe('handleResetSelfModel', () => {
     it('returns CONFIRM_REQUIRED error without --confirm', () => {
-      setConfirmFlag(false);
-      const result = handlers.handleResetSelfModel([], {});
+      const result = handlers.handleResetSelfModel([], flagsWith(false));
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('CONFIRM_REQUIRED');
     });
 
     it('calls selfModel.coldStart with --confirm', () => {
-      setConfirmFlag(true);
-      handlers.handleResetSelfModel([], {});
+      handlers.handleResetSelfModel([], flagsWith(true));
       expect(context.selfModel._coldStartCalled).toBe(true);
     });
 
     it('returns ok with reset type', () => {
-      setConfirmFlag(true);
-      const result = handlers.handleResetSelfModel([], {});
+      const result = handlers.handleResetSelfModel([], flagsWith(true));
       expect(result.ok).toBe(true);
       expect(result.value.json).toHaveProperty('reset', 'self-model');
     });
 
     it('returns { human, json, raw } output modes', () => {
-      setConfirmFlag(true);
-      const result = handlers.handleResetSelfModel([], {});
+      const result = handlers.handleResetSelfModel([], flagsWith(true));
       expect(result.ok).toBe(true);
       expect(typeof result.value.human).toBe('string');
       expect(result.value.json).toBeDefined();
@@ -187,30 +160,26 @@ describe('reset.cjs', () => {
 
   describe('handleResetAll', () => {
     it('returns CONFIRM_REQUIRED error without --confirm', async () => {
-      setConfirmFlag(false);
-      const result = await handlers.handleResetAll([], {});
+      const result = await handlers.handleResetAll([], flagsWith(false));
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('CONFIRM_REQUIRED');
     });
 
     it('resets both fragments and Self Model with --confirm', async () => {
-      setConfirmFlag(true);
-      await handlers.handleResetAll([], {});
+      await handlers.handleResetAll([], flagsWith(true));
       expect(context.fragmentWriter._deletedIds.length).toBe(3);
       expect(context.selfModel._coldStartCalled).toBe(true);
     });
 
     it('returns ok with combined result', async () => {
-      setConfirmFlag(true);
-      const result = await handlers.handleResetAll([], {});
+      const result = await handlers.handleResetAll([], flagsWith(true));
       expect(result.ok).toBe(true);
       expect(result.value.json).toHaveProperty('reset', 'all');
       expect(result.value.json).toHaveProperty('fragments_deleted', 3);
     });
 
     it('returns { human, json, raw } output modes', async () => {
-      setConfirmFlag(true);
-      const result = await handlers.handleResetAll([], {});
+      const result = await handlers.handleResetAll([], flagsWith(true));
       expect(result.ok).toBe(true);
       expect(typeof result.value.human).toBe('string');
       expect(result.value.json).toBeDefined();
