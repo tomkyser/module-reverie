@@ -19,4 +19,17 @@ describe('status command handler', function () {
     expect(result.ok).toBe(true);
     expect(result.value).toHaveProperty('human');
   });
+
+  it('reads mode from Magnet when available', async function () {
+    const mockMagnet = {
+      get: function (scope, ns, key) {
+        if (scope === 'module' && ns === 'reverie' && key === 'mode') return 'active';
+        return null;
+      },
+    };
+    const handler = createStatusHandler({ magnet: mockMagnet });
+    const result = await handler.handle([], {});
+    expect(result.ok).toBe(true);
+    expect(result.value.json.mode).toBe('active');
+  });
 });

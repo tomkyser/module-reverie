@@ -32,7 +32,7 @@ const { ok } = require('../../../../lib/result.cjs');
  * @returns {{ handle: Function }} Handler object
  */
 function createStatusHandler(context) {
-  const { modeManager, selfModel, journal, switchboard, wire } = context || {};
+  const { modeManager, selfModel, journal, switchboard, wire, magnet } = context || {};
 
   /**
    * Handles the `dynamo reverie status` command.
@@ -45,12 +45,38 @@ function createStatusHandler(context) {
    * @returns {import('../../../../lib/result.cjs').Result<{human: string, json: Object, raw: string}>}
    */
   function handle(args, flags) {
-    // Mode: from modeManager or 'unknown' if unavailable
-    const mode = modeManager ? modeManager.getMode() : 'unknown';
+    // Mode: prefer persisted state from Magnet (cross-invocation per D-07)
+    let mode = 'unknown';
+    if (magnet) {
+      const persistedMode = magnet.get('module', 'reverie', 'mode');
+      if (persistedMode) mode = persistedMode;
+    } else if (modeManager) {
+      mode = modeManager.getMode();
+    }
 
-    // Topology health: from modeManager metrics or 'unknown'
+    // Session data: from Magnet for cross-invocation reads
+    let tripletId = null;
+    let sessionState = null;
+    let relayPort = null;
+    if (magnet) {
+      tripletId = magnet.get('module', 'reverie', 'triplet_id');
+      sessionState = magnet.get('module', 'reverie', 'session_state');
+      relayPort = magnet.get('global', 'relay_port');
+    }
+
+    // Topology health: prefer relay port from Magnet for cross-invocation checks
     let topologyHealth = 'unknown';
-    if (modeManager && typeof modeManager.getMetrics === 'function') {
+    if (relayPort) {
+      try {
+        const resp = Bun.spawnSync(['curl', '-s', '-m', '2', 'http://127.0.0.1:' + relayPort + '/health']);
+        if (resp.success) {
+          const health = JSON.parse(resp.stdout.toString());
+          topologyHealth = (health.sessions && health.sessions > 0) ? 'connected' : 'disconnected';
+        } else {
+          topologyHealth = 'disconnected';
+        }
+      } catch (_e) { topologyHealth = 'disconnected'; }
+    } else if (modeManager && typeof modeManager.getMetrics === 'function') {
       const metrics = modeManager.getMetrics();
       topologyHealth = metrics.active_sessions_count > 0 ? 'connected' : 'disconnected';
     }
@@ -108,6 +134,9 @@ function createStatusHandler(context) {
     const data = {
       mode: mode,
       topology_health: topologyHealth,
+      triplet_id: tripletId,
+      session_state: sessionState,
+      relay_port: relayPort,
       fragments: fragments,
       self_model_version: smVersion,
       last_rem: lastRemTimestamp,
@@ -121,6 +150,9 @@ function createStatusHandler(context) {
       '==============',
       'Mode:                    ' + data.mode,
       'Topology Health:         ' + data.topology_health,
+      'Triplet ID:              ' + (data.triplet_id || 'none'),
+      'Session State:           ' + (data.session_state || 'unknown'),
+      'Relay Port:              ' + (data.relay_port || 'none'),
       'Fragments (working):     ' + data.fragments.working,
       'Fragments (active):      ' + data.fragments.active,
       'Fragments (archive):     ' + data.fragments.archive,

@@ -30,7 +30,7 @@ const { ok, err } = require('../../../../lib/result.cjs');
  * @returns {{ handle: Function }} Handler object
  */
 function createStopHandler(context) {
-  const { modeManager, sessionManager, remConsolidator, contextManager } = context || {};
+  const { modeManager, sessionManager, remConsolidator, contextManager, magnet } = context || {};
 
   /**
    * Handles the `dynamo reverie stop` command.
@@ -110,12 +110,34 @@ function createStopHandler(context) {
       });
     }
 
-    // Step 4: Fire-and-forget warm-start persistence
+    // Step 4: Clean up relay server and session processes
+    if (magnet) {
+      const relayPid = magnet.get('global', 'relay_pid');
+      if (relayPid) {
+        try { process.kill(relayPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
+      }
+      // Kill Secondary/Tertiary terminal window processes
+      const secondaryPid = magnet.get('global', 'secondary_pid');
+      const tertiaryPid = magnet.get('global', 'tertiary_pid');
+      if (secondaryPid) {
+        try { process.kill(secondaryPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
+      }
+      if (tertiaryPid) {
+        try { process.kill(tertiaryPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
+      }
+      // Clear all PIDs and relay state
+      magnet.set('global', 'relay_pid', null);
+      magnet.set('global', 'relay_port', null);
+      magnet.set('global', 'secondary_pid', null);
+      magnet.set('global', 'tertiary_pid', null);
+    }
+
+    // Step 5: Fire-and-forget warm-start persistence
     if (contextManager && typeof contextManager.persistWarmStart === 'function') {
       contextManager.persistWarmStart().catch(function () {});
     }
 
-    // Step 5: Return immediately
+    // Step 6: Return immediately
     var stopData = { mode: 'rem', stopping: true, rem_initiated: true };
     return ok({
       human: 'Reverie shutdown initiated\nREM consolidation running in background\nMemories will be preserved before sessions terminate',

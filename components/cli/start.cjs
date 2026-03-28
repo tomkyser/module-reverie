@@ -28,7 +28,7 @@ const { ok, err } = require('../../../../lib/result.cjs');
  * @returns {{ handle: Function }} Handler object
  */
 function createStartHandler(context) {
-  const { modeManager, sessionManager } = context || {};
+  const { modeManager, sessionManager, magnet, conductor } = context || {};
 
   /**
    * Handles the `dynamo reverie start` command.
@@ -51,6 +51,33 @@ function createStartHandler(context) {
         'NOT_INITIALIZED',
         'Reverie is not initialized -- run a session first or check platform health with `bun bin/dynamo.cjs health`'
       );
+    }
+
+    // Clean start per D-03: kill stale processes, clear state, spawn fresh
+    if (magnet) {
+      // Kill stale Secondary/Tertiary terminal window PIDs (per D-03: signal shutdown)
+      const staleSecondaryPid = magnet.get('global', 'secondary_pid');
+      const staleTertiaryPid = magnet.get('global', 'tertiary_pid');
+      if (staleSecondaryPid) {
+        try { process.kill(staleSecondaryPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
+      }
+      if (staleTertiaryPid) {
+        try { process.kill(staleTertiaryPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
+      }
+      // Kill stale relay process
+      const staleRelayPid = magnet.get('global', 'relay_pid');
+      if (staleRelayPid) {
+        try { process.kill(staleRelayPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
+      }
+      // Clear stale session state -- fresh spawn every time
+      await magnet.set('module', 'reverie', 'session_state', null);
+      await magnet.set('module', 'reverie', 'secondary_session_id', null);
+      await magnet.set('module', 'reverie', 'tertiary_session_id', null);
+      await magnet.set('module', 'reverie', 'triplet_id', null);
+      await magnet.set('global', 'relay_pid', null);
+      await magnet.set('global', 'relay_port', null);
+      await magnet.set('global', 'secondary_pid', null);
+      await magnet.set('global', 'tertiary_pid', null);
     }
 
     const mode = modeManager.getMode();
@@ -99,6 +126,11 @@ function createStartHandler(context) {
         'UPGRADE_FAILED',
         'Could not upgrade to Active mode -- ' + (upgradeResult.error ? upgradeResult.error.message : 'unknown error') + '. Try `bun bin/dynamo.cjs reverie status` to check current state'
       );
+    }
+
+    // Persist relay port for cross-invocation status reads
+    if (magnet) {
+      await magnet.set('global', 'relay_port', 9876); // Default; Plan 04 wires real relay lifecycle
     }
 
     // Fetch updated state after upgrade
