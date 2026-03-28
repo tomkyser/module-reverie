@@ -110,6 +110,15 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Hook output with additionalContext
    */
   async function handleSessionStart(payload) {
+    // Guard: only Primary sessions run Reverie hook logic.
+    // Spawned Secondary/Tertiary sessions set SESSION_IDENTITY in their env.
+    // Without this guard, SessionStart on a spawned session re-triggers
+    // sessionManager.start() which spawns ANOTHER Secondary — infinite loop.
+    const sessionIdentity = process.env.SESSION_IDENTITY;
+    if (sessionIdentity === 'secondary' || sessionIdentity === 'tertiary') {
+      return {};
+    }
+
     // Per D-03: Inject session-scoped transcript_path into Lithograph
     // so all subsequent read/write/query ops target this session's transcript.
     // transcript_path comes from Claude Code hook stdin JSON payload.
