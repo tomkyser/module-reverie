@@ -51,15 +51,24 @@ const OPERATIONAL_MODES = Object.freeze({
  * @param {Object} options.config - Configuration options
  * @returns {Readonly<{ getMode: Function, requestActive: Function, requestPassive: Function, checkHealth: Function, getMetrics: Function }>}
  */
-function createModeManager({ sessionManager, conductor, switchboard, config } = {}) {
+function createModeManager({ sessionManager, conductor, switchboard, config, magnet } = {}) {
   // ---------------------------------------------------------------------------
   // Internal state
   // ---------------------------------------------------------------------------
 
+  const _magnet = magnet || null;
   let _mode = OPERATIONAL_MODES.PASSIVE;
   const _startedAt = Date.now();
   let _modeChanges = 0;
   let _lastHealthCheck = null;
+
+  // Hydrate persisted mode from Magnet (cross-invocation persistence per D-07)
+  if (_magnet) {
+    const persistedMode = _magnet.get('module', 'reverie', 'mode');
+    if (persistedMode && Object.values(OPERATIONAL_MODES).includes(persistedMode)) {
+      _mode = persistedMode;
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Helper: set mode with event emission
@@ -75,6 +84,13 @@ function createModeManager({ sessionManager, conductor, switchboard, config } = 
     const oldMode = _mode;
     _mode = newMode;
     _modeChanges++;
+
+    // Persist to Magnet for cross-invocation reads (per D-07)
+    if (_magnet) {
+      _magnet.set('module', 'reverie', 'mode', newMode);
+      _magnet.set('module', 'reverie', 'mode_reason', reason);
+      _magnet.set('module', 'reverie', 'mode_changed_at', new Date().toISOString());
+    }
 
     if (switchboard) {
       switchboard.emit('mode:changed', { from: oldMode, to: newMode, reason });

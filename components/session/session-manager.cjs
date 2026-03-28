@@ -39,16 +39,32 @@ const { setTerminalTitle, formatPrefix, ROLE_LABELS } = require('./visual-marker
  * @param {Object} options.config - Session configuration from createSessionConfig
  * @returns {Readonly<{ start: Function, stop: Function, upgrade: Function, degrade: Function, getState: Function }>}
  */
-function createSessionManager({ conductor, wire, selfModel, switchboard, sublimationLoop, config } = {}) {
+function createSessionManager({ conductor, wire, selfModel, switchboard, sublimationLoop, config, magnet } = {}) {
   // ---------------------------------------------------------------------------
   // Internal state
   // ---------------------------------------------------------------------------
 
+  const _magnet = magnet || null;
   let _state = SESSION_STATES.UNINITIALIZED;
   let _secondarySessionId = null;
   let _tertiarySessionId = null;
   let _tripletId = null;
   const _config = config;
+
+  // Hydrate persisted session state from Magnet (cross-invocation persistence per D-07)
+  if (_magnet) {
+    const persistedState = _magnet.get('module', 'reverie', 'session_state');
+    const persistedTriplet = _magnet.get('module', 'reverie', 'triplet_id');
+    const persistedSecondary = _magnet.get('module', 'reverie', 'secondary_session_id');
+    const persistedTertiary = _magnet.get('module', 'reverie', 'tertiary_session_id');
+    // Only hydrate if persisted state is a known state
+    if (persistedState && Object.values(SESSION_STATES).includes(persistedState)) {
+      _state = persistedState;
+      _tripletId = persistedTriplet || null;
+      _secondarySessionId = persistedSecondary || null;
+      _tertiarySessionId = persistedTertiary || null;
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Helper: validated state transition
@@ -69,6 +85,14 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
 
     const from = _state;
     _state = targetState;
+
+    // Persist session state to Magnet for cross-invocation reads (per D-07)
+    if (_magnet) {
+      _magnet.set('module', 'reverie', 'session_state', targetState);
+      _magnet.set('module', 'reverie', 'triplet_id', _tripletId);
+      _magnet.set('module', 'reverie', 'secondary_session_id', _secondarySessionId);
+      _magnet.set('module', 'reverie', 'tertiary_session_id', _tertiarySessionId);
+    }
 
     if (switchboard) {
       switchboard.emit('session:state-changed', { from, to: targetState, triplet_id: _tripletId });
@@ -98,6 +122,9 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
 
     // Generate triplet ID for this session group (D-06)
     _tripletId = generateTripletId();
+    if (_magnet) {
+      _magnet.set('module', 'reverie', 'triplet_id', _tripletId);
+    }
     const shortHash = extractShortHash(_tripletId);
     const sessionId = makeTripletSessionId(_tripletId, 'secondary');
 
@@ -316,6 +343,13 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
 
     _tripletId = null;
 
+    // Clear persisted session state in Magnet (per D-07)
+    if (_magnet) {
+      _magnet.set('module', 'reverie', 'triplet_id', null);
+      _magnet.set('module', 'reverie', 'secondary_session_id', null);
+      _magnet.set('module', 'reverie', 'tertiary_session_id', null);
+    }
+
     return ok({ state: _state });
   }
 
@@ -348,6 +382,13 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
     }
 
     _tripletId = null;
+
+    // Clear persisted session state in Magnet (per D-07)
+    if (_magnet) {
+      _magnet.set('module', 'reverie', 'triplet_id', null);
+      _magnet.set('module', 'reverie', 'secondary_session_id', null);
+      _magnet.set('module', 'reverie', 'tertiary_session_id', null);
+    }
 
     // Transition to STOPPED
     _transition(SESSION_STATES.STOPPED);
