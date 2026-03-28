@@ -50,6 +50,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
   let _tertiarySessionId = null;
   let _tripletId = null;
   const _config = config;
+  let _relayUrl = null;
 
   // Hydrate persisted session state from Magnet (cross-invocation persistence per D-07)
   if (_magnet) {
@@ -137,6 +138,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
         TRIPLET_ID: _tripletId,
         MODEL: _config.secondary_model,
         DISPLAY_PREFIX: formatPrefix(ROLE_LABELS.secondary, shortHash),
+        relayUrl: _relayUrl || '',
       },
     });
 
@@ -191,6 +193,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
         TRIPLET_ID: _tripletId,
         MODEL: _config.tertiary_model,
         DISPLAY_PREFIX: formatPrefix(ROLE_LABELS.tertiary, shortHash),
+        relayUrl: _relayUrl || '',
       },
     });
 
@@ -397,6 +400,16 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
   }
 
   /**
+   * Sets the relay URL for spawned sessions to connect to the Wire relay server.
+   * Must be called before start()/upgrade() for sessions to receive the relay URL.
+   *
+   * @param {string} url - Relay URL (e.g., 'http://127.0.0.1:9876')
+   */
+  function setRelayUrl(url) {
+    _relayUrl = url;
+  }
+
+  /**
    * Returns the current session manager state.
    *
    * @returns {{ state: string, secondary: string|null, tertiary: string|null, config: Object }}
@@ -424,6 +437,7 @@ function createSessionManager({ conductor, wire, selfModel, switchboard, sublima
     transitionToRem,
     completeRem,
     getState,
+    setRelayUrl,
   });
 }
 

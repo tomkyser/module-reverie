@@ -13,6 +13,7 @@
  * @module reverie/components/cli/start
  */
 
+const path = require('node:path');
 const { ok, err } = require('../../../../lib/result.cjs');
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,60 @@ function createStartHandler(context) {
       });
     }
 
+    // ---- Per D-04: Spawn Wire relay server as background Bun process ----
+    var relayServerPath = path.resolve(__dirname, '../../../../core/services/wire/relay-server.cjs');
+    var relayPort = 9876;
+    var relayProc;
+
+    try {
+      relayProc = Bun.spawn(['bun', 'run', relayServerPath], {
+        env: {
+          ...process.env,
+          WIRE_RELAY_PORT: String(relayPort),
+        },
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+    } catch (spawnErr) {
+      return err(
+        'RELAY_SPAWN_FAILED',
+        'Could not start Wire relay server -- ' + spawnErr.message + '. Try `bun bin/dynamo.cjs reverie status` to check current state'
+      );
+    }
+
+    // Wait for relay to become healthy (Pitfall 3: race condition)
+    // Poll /health up to 5 times with 500ms delay
+    var relayReady = false;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      await new Promise(function (resolve) { setTimeout(resolve, 500); });
+      try {
+        var healthCheck = Bun.spawnSync(['curl', '-s', '-m', '1', 'http://127.0.0.1:' + relayPort + '/health']);
+        if (healthCheck.success) {
+          relayReady = true;
+          break;
+        }
+      } catch (_e) { /* retry */ }
+    }
+
+    if (!relayReady) {
+      // Kill the process if health check never passed
+      try { relayProc.kill(); } catch (_e) { /* already dead */ }
+      return err(
+        'RELAY_HEALTH_FAILED',
+        'Wire relay server started but health check failed after 2.5s. Try `bun bin/dynamo.cjs reverie status` to check current state'
+      );
+    }
+
+    // Persist relay info in Magnet for cross-invocation reads
+    if (magnet) {
+      await magnet.set('global', 'relay_port', relayPort);
+      await magnet.set('global', 'relay_pid', relayProc.pid);
+    }
+
+    // Set relay URL on Session Manager so spawned sessions receive it
+    sessionManager.setRelayUrl('http://127.0.0.1:' + relayPort);
+
     // ---- session not yet started: start session first, then upgrade ----
     // Mode Manager may report 'passive' while Session Manager is still 'uninitialized'
     // (two independent state machines). Always check session state before upgrade.
@@ -128,17 +183,34 @@ function createStartHandler(context) {
       );
     }
 
-    // Persist relay port for cross-invocation status reads
+    // Capture terminal process PIDs for clean-start kill (D-03)
+    // These are the bash processes running our temp scripts
     if (magnet) {
-      await magnet.set('global', 'relay_port', 9876); // Default; Plan 04 wires real relay lifecycle
+      try {
+        var pgrepSecondary = Bun.spawnSync(['pgrep', '-f', 'dynamo-secondary']);
+        if (pgrepSecondary.success) {
+          var secPid = parseInt(pgrepSecondary.stdout.toString().trim().split('\n')[0], 10);
+          if (!isNaN(secPid)) await magnet.set('global', 'secondary_pid', secPid);
+        }
+      } catch (_e) { /* pgrep may not find it immediately */ }
+      try {
+        var pgrepTertiary = Bun.spawnSync(['pgrep', '-f', 'dynamo-tertiary']);
+        if (pgrepTertiary.success) {
+          var terPid = parseInt(pgrepTertiary.stdout.toString().trim().split('\n')[0], 10);
+          if (!isNaN(terPid)) await magnet.set('global', 'tertiary_pid', terPid);
+        }
+      } catch (_e) { /* pgrep may not find it immediately */ }
     }
 
     // Fetch updated state after upgrade
     var updatedState = sessionManager.getState();
     var updatedTripletId = updatedState ? updatedState.triplet_id : tripletId;
-    var activeData = { mode: 'active', changed: true, triplet_id: updatedTripletId };
+    var activeData = {
+      mode: 'active', changed: true, triplet_id: updatedTripletId,
+      relay_port: relayPort, relay_pid: relayProc.pid,
+    };
     return ok({
-      human: 'Reverie upgraded to Active mode\nTriplet: ' + (updatedTripletId || 'unknown') + '\nSessions: Primary + Secondary + Tertiary',
+      human: 'Reverie upgraded to Active mode\nTriplet: ' + (updatedTripletId || 'unknown') + '\nRelay: http://127.0.0.1:' + relayPort + '\nSessions: Primary + Secondary + Tertiary',
       json: activeData,
       raw: JSON.stringify(activeData),
     });

@@ -85,32 +85,8 @@ function createStopHandler(context) {
     }
 
     // ---- active or passive: initiate stop with REM ----
-    // Step 1: Request REM mode
-    await modeManager.requestRem('user_stop_command');
-
-    // Step 2: Transition Session Manager to REM processing
-    if (sessionManager) {
-      await sessionManager.transitionToRem();
-    }
-
-    // Step 3: Fire-and-forget Tier 3 REM consolidation
-    if (remConsolidator) {
-      var sessionContext = {
-        summary: {},
-        fragments: [],
-        recallEvents: [],
-        metrics: {},
-        domainData: { domainPairs: [], entityList: [], associationStats: [] },
-      };
-      remConsolidator.handleTier3(sessionContext).then(function (_result) {
-        if (modeManager) modeManager.requestDormant();
-        if (sessionManager) sessionManager.completeRem();
-      }).catch(function (_e) {
-        if (sessionManager) sessionManager.completeRem().catch(function () {});
-      });
-    }
-
-    // Step 4: Clean up relay server and session processes
+    // Step 1: Clean up relay server and session processes BEFORE REM
+    // (relay is not needed for consolidation)
     if (magnet) {
       const relayPid = magnet.get('global', 'relay_pid');
       if (relayPid) {
@@ -126,10 +102,35 @@ function createStopHandler(context) {
         try { process.kill(tertiaryPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
       }
       // Clear all PIDs and relay state
-      magnet.set('global', 'relay_pid', null);
-      magnet.set('global', 'relay_port', null);
-      magnet.set('global', 'secondary_pid', null);
-      magnet.set('global', 'tertiary_pid', null);
+      await magnet.set('global', 'relay_pid', null);
+      await magnet.set('global', 'relay_port', null);
+      await magnet.set('global', 'secondary_pid', null);
+      await magnet.set('global', 'tertiary_pid', null);
+    }
+
+    // Step 2: Request REM mode
+    await modeManager.requestRem('user_stop_command');
+
+    // Step 3: Transition Session Manager to REM processing
+    if (sessionManager) {
+      await sessionManager.transitionToRem();
+    }
+
+    // Step 4: Fire-and-forget Tier 3 REM consolidation
+    if (remConsolidator) {
+      var sessionContext = {
+        summary: {},
+        fragments: [],
+        recallEvents: [],
+        metrics: {},
+        domainData: { domainPairs: [], entityList: [], associationStats: [] },
+      };
+      remConsolidator.handleTier3(sessionContext).then(function (_result) {
+        if (modeManager) modeManager.requestDormant();
+        if (sessionManager) sessionManager.completeRem();
+      }).catch(function (_e) {
+        if (sessionManager) sessionManager.completeRem().catch(function () {});
+      });
     }
 
     // Step 5: Fire-and-forget warm-start persistence
