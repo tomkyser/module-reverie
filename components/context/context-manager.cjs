@@ -35,6 +35,13 @@ const { createColdStartSeed } = require('../self-model/cold-start.cjs');
 // ---------------------------------------------------------------------------
 
 /**
+ * One-time welcome message shown on first-ever cold start (D-04, D-05, D-06).
+ * Two lines, well under three-line limit. Contains what Dynamo/Reverie is + how to interact.
+ * @type {string}
+ */
+const WELCOME_TEXT = 'Welcome to Dynamo. Reverie is now active -- it will remember what matters from our conversations.\nUse /reverie to manage memory sessions or /dynamo to check platform health.';
+
+/**
  * Contract shape for the Context Manager.
  * @type {import('../../../../lib/contract.cjs').ContractShape}
  */
@@ -51,7 +58,7 @@ const CONTEXT_MANAGER_SHAPE = {
     'getSessionSnapshot',
     'persistWarmStart',
   ],
-  optional: ['incrementTurn', 'getNudge', 'receiveSecondaryUpdate', 'setSecondaryActive'],
+  optional: ['incrementTurn', 'getNudge', 'receiveSecondaryUpdate', 'setSecondaryActive', 'getWelcomeMessage', 'clearWelcomeMessage'],
 };
 
 // ---------------------------------------------------------------------------
@@ -92,6 +99,7 @@ function createContextManager(options) {
   const _checkpointDir = path.join(resolvedDataDir, 'data', 'checkpoints');
   let _initialized = false;
   let _secondaryActive = false;
+  let _welcomeMessage = null;
 
   // -------------------------------------------------------------------------
   // Methods
@@ -126,6 +134,18 @@ function createContextManager(options) {
 
     // Compose initial face prompt
     await compose();
+
+    // Welcome message -- first-ever use only (D-04, D-05, D-06)
+    // Flag placed at reverie root dir (survives reset all which only wipes fragments/self-model)
+    const welcomeFlagPath = path.join(resolvedDataDir, '.welcome-shown');
+    const welcomeExists = lathe && typeof lathe.exists === 'function' ? lathe.exists(welcomeFlagPath) : null;
+    const welcomeShown = welcomeExists && welcomeExists.ok ? welcomeExists.value : false;
+    if (!welcomeShown) {
+      _welcomeMessage = WELCOME_TEXT;
+      if (lathe && typeof lathe.writeFile === 'function') {
+        lathe.writeFile(welcomeFlagPath, new Date().toISOString());
+      }
+    }
 
     _initialized = true;
     return ok({ source: 'cold-start' });
@@ -365,6 +385,26 @@ function createContextManager(options) {
     return result.value.text;
   }
 
+  /**
+   * Returns the one-time welcome message text, or null if not set.
+   *
+   * Set during cold-start init when no welcome flag file exists.
+   * Cleared after first injection via clearWelcomeMessage().
+   *
+   * @returns {string|null}
+   */
+  function getWelcomeMessage() {
+    return _welcomeMessage;
+  }
+
+  /**
+   * Clears the welcome message (one-shot: read once, clear).
+   * Idempotent -- calling multiple times does not error.
+   */
+  function clearWelcomeMessage() {
+    _welcomeMessage = null;
+  }
+
   return createContract('contextManager', CONTEXT_MANAGER_SHAPE, {
     init,
     compose,
@@ -380,6 +420,8 @@ function createContextManager(options) {
     getNudge,
     receiveSecondaryUpdate,
     setSecondaryActive,
+    getWelcomeMessage,
+    clearWelcomeMessage,
   });
 }
 
