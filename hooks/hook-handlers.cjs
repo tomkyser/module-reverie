@@ -275,8 +275,18 @@ function createHookHandlers(options) {
       }
     }
 
+    // Welcome message -- one-shot on first-ever cold start (D-04, D-05)
+    let welcomePrefix = '';
+    if (contextManager && typeof contextManager.getWelcomeMessage === 'function') {
+      const welcomeMsg = contextManager.getWelcomeMessage();
+      if (welcomeMsg) {
+        welcomePrefix = welcomeMsg + '\n\n';
+        contextManager.clearWelcomeMessage();
+      }
+    }
+
     // Build combined additionalContext
-    let combinedInjection = injection || '';
+    let combinedInjection = welcomePrefix + (injection || '');
     if (nudgeText) {
       combinedInjection += '\n\n---\n[Inner impression: ' + nudgeText + ']';
     }
