@@ -26,6 +26,7 @@ function createMockSessionManager(overrides) {
     transitionToRem: async function () { return { ok: true, value: { state: 'rem_processing' } }; },
     completeRem: async function () { return { ok: true, value: { state: 'stopped' } }; },
     initShutdown: async function () { return { ok: true, value: {} }; },
+    setRelayUrl: function (_url) {},
   }, overrides || {});
 }
 
