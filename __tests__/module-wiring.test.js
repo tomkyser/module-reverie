@@ -143,12 +143,12 @@ describe('Phase 12: Module wiring integration', () => {
   });
 
   describe('CLI command registration', () => {
-    it('registers all 14 base commands + backfill = 15 commands', () => {
+    it('registers all 16 base commands + backfill = 17 commands', () => {
       const facade = createMockFacade();
       register(facade);
 
       const commands = facade.getRegisteredCommands();
-      expect(commands.length).toBe(15);
+      expect(commands.length).toBe(17);
     });
 
     it('registers status command', () => {
