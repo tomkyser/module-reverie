@@ -238,9 +238,11 @@ function createHookHandlers(options) {
     }
 
     // --- Phase 10: Forward conversation snapshot to Secondary via Wire ---
+    // MUST await Wire sends in ephemeral hook processes -- process.exit()
+    // kills pending promises. Failure is still non-fatal (caught).
     if (wireTopology && sessionManager && sessionManager.getState().state !== 'stopped') {
       try {
-        wireTopology.send({
+        await wireTopology.send({
           from: 'primary',
           to: 'secondary',
           type: MESSAGE_TYPES.SNAPSHOT,
@@ -250,28 +252,24 @@ function createHookHandlers(options) {
             turnNumber: (payload && payload.turn_number) || 0,
             toolsUsed: (payload && payload.tools_used) || [],
           },
-        }).catch(function (_e) {
-          // Snapshot send failure is non-fatal
         });
       } catch (_e) {
-        // Non-fatal
+        // Snapshot send failure is non-fatal
       }
     }
 
     // Phase 11: Send heartbeat to Secondary for Tier 2 idle detection per D-02
     if (wireTopology && sessionManager && sessionManager.getState().state !== 'stopped') {
       try {
-        wireTopology.send({
+        await wireTopology.send({
           from: 'primary',
           to: 'secondary',
           type: MESSAGE_TYPES.HEARTBEAT,
           urgency: URGENCY_LEVELS.BACKGROUND,
           payload: { timestamp: Date.now() },
-        }).catch(function (_e) {
-          // Heartbeat send failure is non-fatal
         });
       } catch (_e) {
-        // Non-fatal
+        // Heartbeat send failure is non-fatal
       }
     }
 
@@ -406,19 +404,18 @@ function createHookHandlers(options) {
     }
 
     // Phase 10: Notify Secondary of compaction via Wire
+    // MUST await in ephemeral hook processes -- process.exit() kills pending promises.
     if (wireTopology) {
       try {
-        wireTopology.send({
+        await wireTopology.send({
           from: 'primary',
           to: 'secondary',
           type: MESSAGE_TYPES.SNAPSHOT,
           urgency: URGENCY_LEVELS.URGENT,
           payload: { event: 'pre_compact' },
-        }).catch(function (_e) {
-          // Compaction notification failure is non-fatal
         });
       } catch (_e) {
-        // Non-fatal
+        // Compaction notification failure is non-fatal
       }
     }
 
