@@ -85,16 +85,16 @@ function createInspectHandlers(context) {
   function handleInspectFragment(args, flags) {
     const id = args && args[0];
     if (!id) {
-      return err('MISSING_ID', 'Usage: dynamo reverie inspect fragment <id>');
+      return err('MISSING_ID', 'Missing fragment ID. Usage: bun bin/dynamo.cjs reverie inspect fragment <fragment-id>. Try: bun bin/dynamo.cjs reverie history fragments to find fragment IDs');
     }
 
     if (!journal || typeof journal.read !== 'function') {
-      return err('NO_JOURNAL', 'Journal provider not available');
+      return err('NO_JOURNAL', 'Journal provider not available -- Reverie may not be initialized. Try: bun bin/dynamo.cjs health to check service status');
     }
 
     const readResult = journal.read(id);
     if (!readResult || !readResult.ok) {
-      return err('FRAGMENT_NOT_FOUND', 'Fragment "' + id + '" not found');
+      return err('FRAGMENT_NOT_FOUND', 'Fragment "' + id + '" not found. Try: bun bin/dynamo.cjs reverie history fragments to list available fragments');
     }
 
     const fragment = readResult.value;
@@ -182,7 +182,7 @@ function createInspectHandlers(context) {
   function handleInspectAssociations(args, flags) {
     const entity = args && args[0];
     if (!entity) {
-      return err('MISSING_ENTITY', 'Usage: dynamo reverie inspect associations <entity>');
+      return err('MISSING_ENTITY', 'Missing entity name. Usage: bun bin/dynamo.cjs reverie inspect associations <entity-name>. Try: bun bin/dynamo.cjs reverie inspect domains to see available entities');
     }
 
     let edges = [];

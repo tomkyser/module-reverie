@@ -156,7 +156,7 @@ function registerReverieCommands(circuitApi, context) {
       // Read the export file
       const fileContent = context.lathe ? context.lathe.readFileSync(filePath) : null;
       if (!fileContent) {
-        return err('FILE_NOT_FOUND', 'Could not read file: ' + filePath);
+        return err('FILE_NOT_FOUND', 'Could not read file: ' + filePath + '. Verify the file exists and the path is correct. Try: ls ' + filePath);
       }
 
       const isDryRun = flags['dry-run'] || false;
