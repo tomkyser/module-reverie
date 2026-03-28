@@ -116,6 +116,12 @@ function createStopHandler(context) {
       await sessionManager.transitionToRem();
     }
 
+    // Flush accumulated state to Ledger (same race as start.cjs —
+    // requestRem and transitionToRem fire-and-forget their Magnet writes)
+    if (magnet) {
+      await magnet.set('global', '_last_stop', Date.now());
+    }
+
     // Step 4: Fire-and-forget Tier 3 REM consolidation
     if (remConsolidator) {
       var sessionContext = {
