@@ -8,6 +8,8 @@
  *
  * Registered command groups:
  * - status: Operational dashboard per D-01
+ * - start: Start or upgrade to Active mode per D-02 (Phase 15)
+ * - stop: Graceful shutdown with REM consolidation per D-03 (Phase 15)
  * - inspect: Deep drill-down (fragment, domains, associations, self-model, identity, relational, conditioning) per D-02
  * - history: Timeline lenses (sessions, fragments, consolidations) per D-03
  * - reset: Scoped resets with --confirm gate per D-04
@@ -22,6 +24,8 @@ const { createStatusHandler } = require('./status.cjs');
 const { createInspectHandlers } = require('./inspect.cjs');
 const { createHistoryHandlers } = require('./history.cjs');
 const { createResetHandlers } = require('./reset.cjs');
+const { createStartHandler } = require('./start.cjs');
+const { createStopHandler } = require('./stop.cjs');
 
 // ---------------------------------------------------------------------------
 // Registration
@@ -50,6 +54,20 @@ function registerReverieCommands(circuitApi, context) {
   const statusHandler = createStatusHandler(context);
   circuitApi.registerCommand('status', statusHandler.handle, {
     description: 'Show Reverie operational dashboard',
+  });
+  registered++;
+
+  // ---- start (D-01, D-02 -- Phase 15) ----
+  const startHandler = createStartHandler(context);
+  circuitApi.registerCommand('start', startHandler.handle, {
+    description: 'Start or upgrade Reverie to Active mode',
+  });
+  registered++;
+
+  // ---- stop (D-01, D-03 -- Phase 15) ----
+  const stopHandler = createStopHandler(context);
+  circuitApi.registerCommand('stop', stopHandler.handle, {
+    description: 'Graceful shutdown with REM consolidation',
   });
   registered++;
 

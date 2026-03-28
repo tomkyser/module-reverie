@@ -334,6 +334,7 @@ function register(facade) {
       modeManager, selfModel, formationPipeline, journal, wire,
       switchboard, fragmentWriter, lathe, dataDir: DATA_DIR_DEFAULT,
       backfillPipeline,
+      sessionManager, remConsolidator, contextManager,  // Phase 15: start + stop commands
     };
     registerReverieCommands(facade, cliContext);
   }
