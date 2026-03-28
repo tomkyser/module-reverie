@@ -206,14 +206,14 @@ function createStartHandler(context) {
     var updatedState = sessionManager.getState();
     var updatedTripletId = updatedState ? updatedState.triplet_id : tripletId;
 
-    // Flush all accumulated state to Ledger before returning.
-    // Mode Manager and Session Manager write to Magnet via fire-and-forget
-    // (their _setMode/_transition are synchronous). Those writes update
-    // Magnet's in-memory state immediately but the async DuckDB write may
-    // not complete before process exit. This explicit awaited write captures
-    // the FULL state tree (including mode, session_state, triplet_id) because
-    // every magnet.set triggers _provider.save(structuredClone(_state)).
+    // Explicitly persist final state to Ledger. Fire-and-forget writes from
+    // _setMode/_transition race with each other — a late-completing write can
+    // overwrite the final state. These explicit awaited writes set the known
+    // correct final values and each triggers a full _provider.save().
     if (magnet) {
+      await magnet.set('module', 'reverie', 'mode', 'active');
+      await magnet.set('module', 'reverie', 'session_state', updatedState ? updatedState.state : 'active');
+      await magnet.set('module', 'reverie', 'triplet_id', updatedTripletId);
       await magnet.set('global', '_last_start', Date.now());
     }
 
