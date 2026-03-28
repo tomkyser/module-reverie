@@ -79,6 +79,16 @@ function createStartHandler(context) {
       await magnet.set('global', 'relay_port', null);
       await magnet.set('global', 'secondary_pid', null);
       await magnet.set('global', 'tertiary_pid', null);
+      // Reset Mode Manager in-memory state to dormant so it doesn't
+      // short-circuit as "already active" from stale persisted state
+      await magnet.set('module', 'reverie', 'mode', 'dormant');
+    }
+
+    // Reset Mode Manager in-memory mode after clean-start clears state.
+    // Without this, Mode Manager still reports "active" from its init() read
+    // of the now-stale Magnet value, causing the "already active" short-circuit.
+    if (modeManager.getMode() !== 'dormant' && sessionManager.getState().state !== 'active') {
+      await modeManager.requestDormant();
     }
 
     const mode = modeManager.getMode();
