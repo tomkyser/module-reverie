@@ -166,6 +166,7 @@ function register(facade) {
     switchboard,
     sublimationLoop,
     config: sessionConfig,
+    magnet,  // Phase 16: cross-invocation state persistence
   });
 
   // Create Mode Manager (Active/Passive with automatic fallback)
@@ -174,6 +175,7 @@ function register(facade) {
     conductor,
     switchboard,
     config: sessionConfig,
+    magnet,  // Phase 16: cross-invocation state persistence
   });
 
   // -------------------------------------------------------------------------
@@ -335,6 +337,8 @@ function register(facade) {
       switchboard, fragmentWriter, lathe, dataDir: DATA_DIR_DEFAULT,
       backfillPipeline,
       sessionManager, remConsolidator, contextManager,  // Phase 15: start + stop commands
+      magnet,     // Phase 16: cross-invocation CLI persistence
+      conductor,  // Phase 16: start clean-start needs conductor ref
     };
     registerReverieCommands(facade, cliContext);
   }
