@@ -27,21 +27,32 @@ const VALIDATE_SKILL_CONTENT = `# Dynamo E2E Validation
 
 Run end-to-end validation of the Dynamo + Reverie platform installation.
 
-## Steps
+## Commands
 
-1. Run the integration test harness:
-   \`bun test modules/reverie/validation/ --reporter=default\`
-2. Parse the test output and report results per success criterion:
-   - SC-1: Module discovery and automatic registration
-   - SC-2: Claude Code hooks fire through Exciter/Armature into Reverie
-   - SC-3: Skills are registered and accessible
-   - SC-4: Session triplet spawning with Wire topology
-   - SC-5: Multi-triplet isolation (Wire registry + Switchboard scoping)
-   - SC-6: Full lifecycle (boot -> load -> hooks -> personality -> formation -> recall -> REM)
-3. Present pass/fail for each criterion with evidence
-4. If all green: "Platform validation passed. Go-live gate clear."
-5. If any red: "Validation failed on: [criteria]. These must be fixed before go-live."
-6. Write checkpoint log: run \`bun run modules/reverie/validation/checkpoint-log.cjs\` to persist results
+1. Run all validation tests: \`bun test modules/reverie/validation/\`
+2. Run the integration harness specifically: \`bun test modules/reverie/validation/integration-harness.test.cjs\`
+3. Persist checkpoint log: \`bun run modules/reverie/validation/checkpoint-log.cjs\`
+
+## Success Criteria
+
+Report pass/fail for each:
+- SC-1: Module discovery and automatic registration
+- SC-2: Claude Code hooks fire through Exciter/Armature into Reverie
+- SC-3: Skills are registered and accessible
+- SC-4: Session triplet spawning with Wire topology
+- SC-5: Multi-triplet isolation (Wire registry + Switchboard scoping)
+- SC-6: Full lifecycle (boot -> load -> hooks -> personality -> formation -> recall -> REM)
+
+## What Validation Covers
+
+- Spec compliance against canonical architecture
+- Integration seams between Dynamo core and Reverie module
+- Platform integration (hooks, skills, CLI, sessions)
+
+## Verdict
+
+- If all green: "Platform validation passed. Go-live gate clear."
+- If any red: "Validation failed on: [criteria]. These must be fixed before go-live."
 
 This is the go-live gate per D-17. All 6 success criteria must be green.`;
 

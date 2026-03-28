@@ -28,17 +28,22 @@ const DYNAMO_SKILL_CONTENT = `# Dynamo Platform Dashboard
 
 Show the user a conversational summary of the Dynamo platform state.
 
-## Steps
+## Commands
 
-1. Run \`bun bin/dynamo.cjs status\` to get platform status
-2. Run \`bun bin/dynamo.cjs health\` to get service health
-3. Present to the user:
-   - Platform lifecycle state (running/stopped/error)
-   - Loaded modules and their registration status
-   - Active services count and any unhealthy services
-   - Hook registration status (how many hook types wired)
-4. If any services are unhealthy, highlight them and suggest next steps
-5. If Dynamo is not booted, check config auto_init setting and advise accordingly
+1. Check platform status: \`bun bin/dynamo.cjs status\`
+2. Run service health check: \`bun bin/dynamo.cjs health\`
+3. View version info: \`bun bin/dynamo.cjs version\`
+4. View configuration: \`bun bin/dynamo.cjs config\`
+   - View specific key: \`bun bin/dynamo.cjs config <key>\`
+
+## Presentation
+
+- Platform lifecycle state (running/stopped/error)
+- Loaded modules and their registration status
+- Active services count and any unhealthy services
+- Hook registration status (how many hook types wired)
+- If any services are unhealthy, highlight them and suggest next steps
+- If Dynamo is not booted, check config auto_init setting and advise accordingly
 
 Present results conversationally -- not as raw CLI output. Summarize, highlight issues, suggest actions.`;
 
