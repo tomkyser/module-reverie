@@ -110,6 +110,25 @@ describe('createStartHandler', function () {
     expect(result.value.json.changed).toBe(true);
   });
 
+  it('calls sessionManager.start() first when mode is passive but session is uninitialized (cold start)', async function () {
+    let startCalled = false;
+    let requestActiveCalled = false;
+    const mm = createMockModeManager({
+      getMode: function () { return 'passive'; },
+      requestActive: async function () { requestActiveCalled = true; return { ok: true, value: { mode: 'active', changed: true } }; },
+    });
+    const sm = createMockSessionManager({
+      getState: function () { return { state: 'uninitialized', triplet_id: null }; },
+      start: async function () { startCalled = true; return { ok: true, value: { state: 'starting' } }; },
+    });
+    const handler = createStartHandler({ modeManager: mm, sessionManager: sm });
+    const result = await handler.handle([], {});
+    expect(result.ok).toBe(true);
+    expect(startCalled).toBe(true);
+    expect(requestActiveCalled).toBe(true);
+    expect(result.value.json.changed).toBe(true);
+  });
+
   it('returns ok with changed=false when mode is rem', async function () {
     const mm = createMockModeManager({ getMode: function () { return 'rem'; } });
     const sm = createMockSessionManager();

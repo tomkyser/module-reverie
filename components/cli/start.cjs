@@ -77,8 +77,12 @@ function createStartHandler(context) {
       });
     }
 
-    // ---- dormant or unknown: start session first, then upgrade ----
-    if (mode === 'dormant' || (mode !== 'passive' && mode !== 'active' && mode !== 'rem')) {
+    // ---- session not yet started: start session first, then upgrade ----
+    // Mode Manager may report 'passive' while Session Manager is still 'uninitialized'
+    // (two independent state machines). Always check session state before upgrade.
+    var sessionState = stateInfo ? stateInfo.state : null;
+    if (mode === 'dormant' || sessionState === 'uninitialized' || sessionState === 'stopped' ||
+        (mode !== 'passive' && mode !== 'active' && mode !== 'rem')) {
       var startResult = await sessionManager.start();
       if (!startResult.ok) {
         return err(
@@ -88,7 +92,7 @@ function createStartHandler(context) {
       }
     }
 
-    // ---- passive (or just started from dormant): upgrade to active ----
+    // ---- passive (or just started): upgrade to active ----
     var upgradeResult = await modeManager.requestActive();
     if (!upgradeResult.ok) {
       return err(
