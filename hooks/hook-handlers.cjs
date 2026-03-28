@@ -173,7 +173,7 @@ function createHookHandlers(options) {
     return {
       hookSpecificOutput: {
         hookEventName: 'SessionStart',
-        additionalContext: injection,
+        additionalContext: injection || undefined,
       },
     };
   }
@@ -301,10 +301,13 @@ function createHookHandlers(options) {
       combinedInjection += '\n\n---\n[Memory reconstruction: ' + recallText + ']';
     }
 
+    // additionalContext must be a string (not null) — Claude Code treats null as hook error
+    const finalContext = combinedInjection || injection || '';
+
     return {
       hookSpecificOutput: {
         hookEventName: 'UserPromptSubmit',
-        additionalContext: combinedInjection || injection,
+        additionalContext: finalContext || undefined,
       },
     };
   }
