@@ -54,9 +54,20 @@ function createStartHandler(context) {
       );
     }
 
-    // Clean start per D-03: kill stale processes, clear state, spawn fresh
-    if (magnet) {
-      // Kill stale Secondary/Tertiary terminal window PIDs (per D-03: signal shutdown)
+    // Check current in-memory state BEFORE deciding whether to clean-start.
+    // The SessionStart hook may have already spawned Secondary (Passive mode).
+    // If so, we should just upgrade to Active — not nuke and restart.
+    const currentMode = modeManager.getMode();
+    const currentState = sessionManager.getState();
+    const currentSessionState = currentState ? currentState.state : null;
+
+    // Only clean-start if we're coming from a truly stale state
+    // (dormant with no live session, or uninitialized/stopped).
+    // Passive/Active with a live session = hook already started things.
+    const isLiveSession = currentSessionState === 'passive' || currentSessionState === 'active' || currentSessionState === 'upgrading';
+
+    if (!isLiveSession && magnet) {
+      // Clean start per D-03: kill stale processes, clear state, spawn fresh
       const staleSecondaryPid = magnet.get('global', 'secondary_pid');
       const staleTertiaryPid = magnet.get('global', 'tertiary_pid');
       if (staleSecondaryPid) {
@@ -65,12 +76,10 @@ function createStartHandler(context) {
       if (staleTertiaryPid) {
         try { process.kill(staleTertiaryPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
       }
-      // Kill stale relay process
       const staleRelayPid = magnet.get('global', 'relay_pid');
       if (staleRelayPid) {
         try { process.kill(staleRelayPid, 'SIGTERM'); } catch (_e) { /* already dead */ }
       }
-      // Clear stale session state -- fresh spawn every time
       await magnet.set('module', 'reverie', 'session_state', null);
       await magnet.set('module', 'reverie', 'secondary_session_id', null);
       await magnet.set('module', 'reverie', 'tertiary_session_id', null);
@@ -79,16 +88,12 @@ function createStartHandler(context) {
       await magnet.set('global', 'relay_port', null);
       await magnet.set('global', 'secondary_pid', null);
       await magnet.set('global', 'tertiary_pid', null);
-      // Reset Mode Manager in-memory state to dormant so it doesn't
-      // short-circuit as "already active" from stale persisted state
       await magnet.set('module', 'reverie', 'mode', 'dormant');
-    }
 
-    // Reset Mode Manager in-memory mode after clean-start clears state.
-    // Without this, Mode Manager still reports "active" from its init() read
-    // of the now-stale Magnet value, causing the "already active" short-circuit.
-    if (modeManager.getMode() !== 'dormant' && sessionManager.getState().state !== 'active') {
-      await modeManager.requestDormant();
+      // Reset Mode Manager in-memory mode to match cleared state
+      if (modeManager.getMode() !== 'dormant') {
+        await modeManager.requestDormant();
+      }
     }
 
     const mode = modeManager.getMode();
