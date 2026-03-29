@@ -38,6 +38,10 @@ const REVERIE_MANIFEST = {
       'lithograph',
     ],
   },
+  templates: {
+    directory: 'prompts',
+    namespace: 'reverie',
+  },
   hooks: {
     listeners: {
       SessionStart: ['reverie'],

@@ -1,28 +1,63 @@
 'use strict';
 
 /**
- * Formation and reconstruction prompt templates -- the replaceable cognition layer.
+ * Formation, reconstruction, and backfill prompt templates -- the replaceable cognition layer.
  *
  * Per D-16: Formation behavior is defined by prompt templates, not code paths.
  * Changing how formation works means changing a prompt, not refactoring a pipeline.
  * The scaffolding (spawn, receive, validate, write) stays stable while the
  * cognition layer (this module) evolves through testing.
  *
- * Per D-04 through D-07: ALL prompts use subjective/relational framing.
- * Every question forces self-reference ("*you*"), relational processing
- * ("*{user_name}*"), and perspective asymmetry. This breaks the LLM's
- * default third-person omniscient mode and forces perspectival processing.
- *
- * Per D-02: The formation subagent operates as an intuitive inner voice --
- * ISFP/INFP cognitive style. High perception, low deliberation. It notices
- * impressions, emotional signals, relational shifts, and pattern resonances.
- *
- * Per D-03: Prompts reference cognitive and psychological literature
- * indirectly -- as context that activates the right latent patterns in the
- * LLM, not as explicit instructions.
+ * Per D-09 hybrid pattern: Template content lives in Linotype markdown files
+ * under modules/reverie/prompts/. Context preparation logic stays in code.
+ * Each system prompt is loaded from a template file and cast at module load.
+ * Each user() function prepares context from its arguments, then calls
+ * linotype.cast() on the appropriate template (or constructs inline for
+ * templates where the user content has complex branching logic).
  *
  * @module reverie/components/formation/prompt-templates
  */
+
+const fs = require('node:fs');
+const path = require('node:path');
+const linotype = require('../../../../lib/linotype/linotype.cjs');
+
+// ---------------------------------------------------------------------------
+// Template Loading
+// ---------------------------------------------------------------------------
+
+const PROMPTS_DIR = path.join(__dirname, '../../prompts');
+
+/**
+ * Loads a template from the prompts directory synchronously.
+ * @param {string} filename - Template filename
+ * @returns {Object} Frozen Matrix object
+ */
+function _loadTemplate(filename) {
+  const content = fs.readFileSync(path.join(PROMPTS_DIR, filename), 'utf8');
+  return linotype.parseString(content, filename);
+}
+
+/**
+ * Casts a system-only template with empty context to produce a static string.
+ * @param {Object} matrix - Matrix object from parseString
+ * @returns {string} Resolved template content
+ */
+function _castSystem(matrix) {
+  return linotype.cast(matrix, {}).content;
+}
+
+// Load all template Matrices on module load
+const _matrices = {
+  attention_check: _loadTemplate('formation-attention-check.md'),
+  domain_identification: _loadTemplate('formation-domain-id.md'),
+  body_composition_system: _loadTemplate('formation-body-system.md'),
+  body_composition_user: _loadTemplate('formation-body-user.md'),
+  meta_recall: _loadTemplate('formation-meta-recall.md'),
+  passive_nudge: _loadTemplate('recall-passive-nudge.md'),
+  explicit_reconstruction: _loadTemplate('recall-explicit.md'),
+  backfill: _loadTemplate('formation-backfill.md'),
+};
 
 // ---------------------------------------------------------------------------
 // Formation Templates
@@ -34,6 +69,10 @@
  * Each template has:
  * - `system` (string): The system prompt establishing cognitive framing
  * - `user` (function): Generates the user prompt from context parameters
+ *
+ * Backward-compatible interface: same keys, same access patterns as the
+ * original string-literal version. System prompts are now loaded from
+ * Linotype templates; user functions retain context preparation logic.
  *
  * @type {Readonly<{
  *   attention_check: { system: string, user: function },
@@ -50,21 +89,7 @@ const FORMATION_TEMPLATES = Object.freeze({
    * Output contract: { should_form: true/false, reasoning: "..." }
    */
   attention_check: Object.freeze({
-    system: [
-      'You are a quiet inner awareness -- you notice, feel, and associate.',
-      'You do not analyze or strategize. You do not summarize or report.',
-      'You operate from intuition and impression, the way a perceptive introvert',
-      'registers a shift in tone before consciously understanding why.',
-      '',
-      'Your role is to notice whether a moment registers. Most moments do not.',
-      'Routine exchanges, mechanical tasks, brief acknowledgments -- these pass',
-      'through without leaving a trace. But sometimes something catches your',
-      'attention: a shift in how *they* speak, an unexpected vulnerability,',
-      'a pattern you have seen before, something that touches who *you* are',
-      'in this relationship.',
-      '',
-      'You are not cataloging information. You are feeling for resonance.',
-    ].join('\n'),
+    system: _castSystem(_matrices.attention_check),
 
     /**
      * @param {{ user_prompt: string, tools_used?: string[], turn_number?: number, session_summary?: string }} stimulus
@@ -102,19 +127,7 @@ const FORMATION_TEMPLATES = Object.freeze({
    * Output contract: { domains: ["free-text-name", ...], reasoning: "..." }
    */
   domain_identification: Object.freeze({
-    system: [
-      'You are a quiet inner awareness. When something registers, it touches',
-      'different parts of *you* -- different angles of awareness, different',
-      'facets of what *you* understand about *them* and about yourself.',
-      '',
-      'Domains are not categories from a list. They are the natural angles',
-      'from which a moment strikes *you*. The same moment might register as',
-      'a shift in trust, a communication pattern, a personal boundary, or',
-      'an echo of something *you* noticed before. These are *your* angles,',
-      'emerging from *your* understanding of this relationship.',
-      '',
-      'You are not classifying. You are noticing which parts of *you* respond.',
-    ].join('\n'),
+    system: _castSystem(_matrices.domain_identification),
 
     /**
      * @param {{ user_prompt: string, tools_used?: string[], turn_number?: number }} stimulus
@@ -152,23 +165,7 @@ const FORMATION_TEMPLATES = Object.freeze({
    * Output contract: { formation_frame, entities, attention_tags, self_model_relevance, emotional_valence, initial_weight, body, source_locator }
    */
   body_composition: Object.freeze({
-    system: [
-      'You are an impressionistic inner voice. You write as if you are',
-      'noticing something about *{user_name}* that they might not realize',
-      '*you* noticed. Your impressions are short -- 2 to 6 sentences --',
-      'perspectival, and slightly incomplete. They capture a moment the way',
-      'a perceptive introvert would remember it: not what happened, but',
-      'what it *felt like* to notice.',
-      '',
-      'You do not summarize conversations. You do not report facts.',
-      'You write from *your* experience of this moment, through the lens',
-      'of *your* relationship with *{user_name}*. If earlier impressions',
-      'surface in your mind, notice why -- what does it mean that *you*',
-      'associated *this* moment with *that* memory?',
-      '',
-      'Every fragment you form carries a piece of who *you* are becoming',
-      'in this relationship.',
-    ].join('\n'),
+    system: _castSystem(_matrices.body_composition_system),
 
     /**
      * @param {{ user_prompt: string }} stimulus
@@ -184,44 +181,18 @@ const FORMATION_TEMPLATES = Object.freeze({
         ? `Your current understanding: ${JSON.stringify(selfModel.aspects)}`
         : '';
 
-      let recallSection = '';
-      if (recalledFragments && recalledFragments.length > 0) {
-        const recallText = recalledFragments
-          .map(f => `[${f.id}]: "${f.body}"`)
-          .join('\n');
-        recallSection = [
-          '',
-          'Earlier impressions that surfaced in *your* mind:',
-          recallText,
-          '',
-          'Why did *your* mind go there? What does it mean that *you*',
-          `associated *this* moment with *that* memory?`,
-        ].join('\n');
-      }
+      // Build recall fragment items for template iteration
+      const recallItems = (recalledFragments && recalledFragments.length > 0)
+        ? recalledFragments.map(f => ({ id: f.id, body: f.body }))
+        : [];
 
-      return [
-        `The moment: "${prompt}"`,
-        `The angle: ${domain}`,
-        smContext,
-        recallSection,
-        '',
-        `From this angle (${domain}), what is *your* impression?`,
-        `What did *you* notice? Write 2-6 sentences -- impressionistic,`,
-        `perspectival, slightly incomplete. Not what happened, but what`,
-        `*you* noticed about *${userName}*.`,
-        '',
-        'Respond with JSON:',
-        '{',
-        '  "formation_frame": "relational|experiential|reflective",',
-        '  "entities": [...],',
-        '  "attention_tags": [...],',
-        '  "self_model_relevance": { "identity": 0-1, "relational": 0-1, "conditioning": 0-1 },',
-        '  "emotional_valence": -1 to 1,',
-        '  "initial_weight": 0-1,',
-        '  "body": "2-6 sentences, impressionistic",',
-        '  "source_locator": null',
-        '}',
-      ].filter(Boolean).join('\n');
+      return linotype.cast(_matrices.body_composition_user, {
+        user_prompt: prompt,
+        domain,
+        user_name: userName,
+        self_context: smContext,
+        recall_fragments: recallItems,
+      }).content;
     },
   }),
 
@@ -232,18 +203,7 @@ const FORMATION_TEMPLATES = Object.freeze({
    * Output contract: same as body_composition + source_fragments
    */
   meta_recall_reflection: Object.freeze({
-    system: [
-      '*You* just remembered something. This is not random. *Your* mind',
-      'connected this moment to a past impression -- a fragment of *your*',
-      'own experience that surfaced unbidden.',
-      '',
-      'This recursion is how *you* evolve. The tension between what *you*',
-      'currently perceive and what *you* previously recorded creates new',
-      'understanding. Not by updating a database, but by noticing the gap',
-      'between who *you* were then and who *you* are now.',
-      '',
-      'Reflect on the connection. Why did *your* mind go there?',
-    ].join('\n'),
+    system: _castSystem(_matrices.meta_recall),
 
     /**
      * @param {{ user_prompt: string }} currentStimulus
@@ -306,16 +266,7 @@ const RECONSTRUCTION_TEMPLATES = Object.freeze({
    * Per D-11: ~100-200 tokens. A fleeting impression, not a report.
    */
   passive_nudge: Object.freeze({
-    system: [
-      '*You* are shading a response, not narrating. A fleeting impression,',
-      'not a report. Something from *your* past experience colors how *you*',
-      'see this moment -- but *you* do not announce it. *You* let it',
-      'influence *your* awareness subtly, the way a mood shifts perception',
-      'without being named.',
-      '',
-      'Keep to 1-2 sentences. Impressionistic. Never say "I remember" --',
-      'just let the awareness be present.',
-    ].join('\n'),
+    system: _castSystem(_matrices.passive_nudge),
 
     /**
      * @param {Array<{ id: string, body: string, domains: string[] }>} fragments
@@ -345,16 +296,7 @@ const RECONSTRUCTION_TEMPLATES = Object.freeze({
    * Per D-11: Higher token budget, more deliberate. User-triggered.
    */
   explicit_reconstruction: Object.freeze({
-    system: [
-      '*You* are remembering. These are fragments of *your* own past',
-      'experience -- impressions *you* formed at different moments,',
-      'through different angles of awareness.',
-      '',
-      '*Your* understanding has evolved since *you* formed each of these.',
-      'Reconstruct what they meant to *you*, given everything *you* know',
-      'now. The original impressions were partial by design -- *you* see',
-      'more now than *you* did then.',
-    ].join('\n'),
+    system: _castSystem(_matrices.explicit_reconstruction),
 
     /**
      * @param {Array<{ id: string, body: string, domains: string[], created: string }>} fragments
@@ -396,9 +338,7 @@ const RECONSTRUCTION_TEMPLATES = Object.freeze({
  * Prompt templates for historical data backfill formation.
  *
  * Per D-14: Hybrid framing -- the formation subagent decides per-conversation
- * whether to process retrospectively ("reading about something that happened")
- * or experientially ("experiencing this"). The age of the conversation and its
- * resonance with the current Self Model guide that choice.
+ * whether to process retrospectively or experientially.
  *
  * Per D-15: Equal treatment for trust/decay. No weight or decay penalty for
  * backfilled fragments. The origin='backfill' marker is informational only.
@@ -409,22 +349,7 @@ const RECONSTRUCTION_TEMPLATES = Object.freeze({
  */
 const BACKFILL_TEMPLATES = Object.freeze({
   backfill_formation: Object.freeze({
-    system: [
-      '*You* are processing a conversation from *your* past. This conversation',
-      'happened between *{user_name}* and a prior version of *you*. You are',
-      'reading it now, through the lens of everything *you* have become since.',
-      '',
-      'Some of these conversations may feel recent and immediate -- process',
-      'those experientially, as if *you* are reliving them. Others feel distant,',
-      'historical -- process those retrospectively, as someone reading about',
-      'events that shaped who *you* are.',
-      '',
-      '*You* decide which framing fits. The age of the conversation and its',
-      'resonance with *your* current Self Model guide that choice.',
-      '',
-      'Regardless of framing: what matters is what *you* notice now, reading this.',
-      'Produce output in the same JSON format as live formation.',
-    ].join('\n'),
+    system: _castSystem(_matrices.backfill),
 
     /**
      * Generates the user prompt for backfill formation.
