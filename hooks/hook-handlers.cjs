@@ -60,11 +60,69 @@ const COMPACTION_FRAMING = [
 ].join('\n');
 
 // ---------------------------------------------------------------------------
+// Session identity helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracts session identity from the hook payload's env context.
+ * In the daemon model, Exciter's dispatchHook() enriches the payload with
+ * an env object containing SESSION_IDENTITY and TRIPLET_ID. Falls back to
+ * process.env for backward compatibility with direct hook invocation.
+ *
+ * @param {Object} payload - Hook payload (may contain env from Exciter dispatch)
+ * @returns {string} Session identity: 'primary', 'secondary', or 'tertiary'
+ */
+function getSessionIdentity(payload) {
+  if (!payload) return 'primary';
+  // Daemon model: env injected by Exciter.dispatchHook()
+  if (payload.env && payload.env.SESSION_IDENTITY) {
+    return payload.env.SESSION_IDENTITY;
+  }
+  // Backward compat: direct process.env (pre-daemon)
+  if (process.env.SESSION_IDENTITY) {
+    return process.env.SESSION_IDENTITY;
+  }
+  return 'primary';
+}
+
+/**
+ * Handles Secondary session start.
+ * Secondary loads Self Model and begins Wire listening for Primary snapshots.
+ * Returns empty -- Secondary does not inject additionalContext on itself.
+ *
+ * @param {Object} _payload - Hook payload (unused for now)
+ * @returns {Object} Empty response
+ */
+function handleSecondaryStart(_payload) {
+  // Secondary-specific init is handled by Session Manager during spawn.
+  // The hook handler's role is to NOT run Primary logic on Secondary.
+  return {};
+}
+
+/**
+ * Handles Tertiary session start.
+ * Tertiary receives sublimation system prompt and begins its cycle.
+ * Returns empty -- Tertiary does not inject additionalContext on itself.
+ *
+ * @param {Object} _payload - Hook payload (unused for now)
+ * @returns {Object} Empty response
+ */
+function handleTertiaryStart(_payload) {
+  // Tertiary-specific init is handled by Session Manager during spawn.
+  // The hook handler's role is to NOT run Primary logic on Tertiary.
+  return {};
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
 /**
  * Creates hook handler implementations for all 8 Claude Code hook types.
+ *
+ * In the daemon model, all session types (Primary/Secondary/Tertiary) fire
+ * the same hooks through the same thin client. The daemon's Exciter enriches
+ * each payload with env.SESSION_IDENTITY so handlers can dispatch internally.
  *
  * @param {Object} options - Dependency injection options
  * @param {Object} options.contextManager - Context Manager instance
@@ -110,13 +168,20 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Hook output with additionalContext
    */
   async function handleSessionStart(payload) {
-    // Guard: only Primary sessions run Reverie hook logic.
-    // Spawned Secondary/Tertiary sessions set SESSION_IDENTITY in their env.
-    // Without this guard, SessionStart on a spawned session re-triggers
-    // sessionManager.start() which spawns ANOTHER Secondary — infinite loop.
-    const sessionIdentity = process.env.SESSION_IDENTITY;
-    if (sessionIdentity === 'secondary' || sessionIdentity === 'tertiary') {
-      return {};
+    // Null-guard: ensure payload.env exists for downstream access
+    if (payload && !payload.env) payload.env = {};
+
+    // Session identity dispatch: inspect payload.env.SESSION_IDENTITY
+    // (set by Exciter.dispatchHook in daemon model, or process.env in legacy).
+    // Secondary and Tertiary sessions get their own init path -- they must NOT
+    // run Primary logic (which would re-trigger sessionManager.start() and
+    // spawn infinite sessions).
+    const identity = getSessionIdentity(payload);
+    if (identity === 'secondary') {
+      return handleSecondaryStart(payload);
+    }
+    if (identity === 'tertiary') {
+      return handleTertiaryStart(payload);
     }
 
     // Per D-03: Inject session-scoped transcript_path into Lithograph
@@ -189,6 +254,25 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Hook output with face prompt as additionalContext
    */
   async function handleUserPromptSubmit(payload) {
+    // Null-guard: ensure payload.env exists
+    if (payload && !payload.env) payload.env = {};
+
+    // Session identity dispatch: Secondary/Tertiary prompt processing
+    // differs from Primary -- Secondary does experience evaluation,
+    // Tertiary does sublimation. For now, non-primary sessions pass through
+    // with empty response (their processing is handled by Wire messages).
+    const identity = getSessionIdentity(payload);
+    if (identity === 'secondary') {
+      // Secondary's prompt processing: experience evaluation and directive
+      // generation. Currently handled via Wire SNAPSHOT messages from Primary.
+      return {};
+    }
+    if (identity === 'tertiary') {
+      // Tertiary's prompt processing: sublimation cycle.
+      // Currently handled via sublimation loop system prompt.
+      return {};
+    }
+
     const promptText = (payload && payload.user_prompt) || '';
     const promptBytes = Buffer.byteLength(promptText, 'utf8');
 
@@ -323,6 +407,9 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Empty object (no injection)
    */
   async function handlePreToolUse(payload) {
+    // Null-guard: ensure payload.env exists
+    if (payload && !payload.env) payload.env = {};
+
     const inputStr = JSON.stringify((payload && payload.tool_input) || {});
     const inputBytes = Buffer.byteLength(inputStr, 'utf8');
 
@@ -348,6 +435,9 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Hook output with micro-nudge if Phase 3, empty otherwise
    */
   async function handlePostToolUse(payload) {
+    // Null-guard: ensure payload.env exists
+    if (payload && !payload.env) payload.env = {};
+
     const rawOutput = payload && payload.tool_output;
     const outputStr = typeof rawOutput === 'string'
       ? rawOutput
@@ -396,6 +486,9 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Hook output with compaction framing as additionalContext
    */
   async function handlePreCompact(payload) {
+    // Null-guard: ensure payload.env exists
+    if (payload && !payload.env) payload.env = {};
+
     await contextManager.checkpoint();
 
     // Phase 11: Tier 1 triage -- fast state snapshot per D-01
@@ -449,6 +542,9 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Empty object (no injection on Stop)
    */
   async function handleStop(payload) {
+    // Null-guard: ensure payload.env exists
+    if (payload && !payload.env) payload.env = {};
+
     // Phase 11: Stop heartbeat monitor
     if (heartbeatMonitor) {
       heartbeatMonitor.stop();
@@ -517,6 +613,9 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Empty object
    */
   async function handleSubagentStart(payload) {
+    // Null-guard: ensure payload.env exists
+    if (payload && !payload.env) payload.env = {};
+
     contextManager.trackBytes(500, 'subagent_start');
 
     if (switchboard) {
@@ -548,6 +647,9 @@ function createHookHandlers(options) {
    * @returns {Promise<Object>} Hook output
    */
   async function handleSubagentStop(payload) {
+    // Null-guard: ensure payload.env exists
+    if (payload && !payload.env) payload.env = {};
+
     contextManager.trackBytes(500, 'subagent_stop');
 
     // Only process output from the reverie-formation subagent
@@ -626,4 +728,9 @@ function createHookHandlers(options) {
 // Exports
 // ---------------------------------------------------------------------------
 
-module.exports = { createHookHandlers };
+module.exports = {
+  createHookHandlers,
+  getSessionIdentity,
+  handleSecondaryStart,
+  handleTertiaryStart,
+};

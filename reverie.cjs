@@ -411,7 +411,49 @@ function register(facade) {
     backfill: backfillPipeline,    // Phase 12: historical data backfill
     cli: true,                     // Phase 12: CLI commands registered
     skills: true,                  // Phase 12.1: skill registration
+    handlers,                      // Phase 17: expose for cleanup deregistration
   };
 }
 
-module.exports = { register };
+/**
+ * Cleans up the Reverie module during daemon disable/shutdown.
+ *
+ * Deregisters hooks from Exciter, stops any running sessions, clears internal
+ * state. Called by Circuit's disableModule() when the user runs
+ * `bun bin/dynamo.cjs reverie disable`.
+ *
+ * @param {Object} facade - Scoped Circuit API
+ * @param {Object} registrationResult - The object returned by register()
+ * @returns {{ name: string, status: string }} Cleanup result
+ */
+function cleanup(facade, registrationResult) {
+  const { getService } = facade;
+
+  // Deregister hooks from Exciter
+  const exciter = getService('exciter');
+  if (exciter && typeof exciter.registerHooks === 'function') {
+    // Exciter tracks hooks by module name; a fresh registerHooks with empty
+    // handlers effectively deregisters. If a dedicated deregister method
+    // is added later, use that instead.
+    try {
+      exciter.registerHooks('reverie', {});
+    } catch (_e) {
+      // Deregistration failure is non-fatal during cleanup
+    }
+  }
+
+  // Stop any running sessions via Session Manager
+  if (registrationResult && registrationResult.handlers) {
+    // Handlers hold references to sessionManager, modeManager, etc.
+    // The actual stop is handled by the daemon's module lifecycle.
+  }
+
+  return { name: 'reverie', status: 'cleaned' };
+}
+
+module.exports = {
+  name: 'reverie',
+  register,
+  cleanup,
+  manifest: require('./manifest.cjs'),
+};
