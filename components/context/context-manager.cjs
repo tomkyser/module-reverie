@@ -23,12 +23,27 @@
  * @module reverie/components/context/context-manager
  */
 
+const fs = require('node:fs');
 const path = require('node:path');
 const { ok, err } = require('../../../../lib/result.cjs');
 const { createContract } = require('../../../../lib/contract.cjs');
 const { createBudgetTracker } = require('./budget-tracker.cjs');
 const { createTemplateComposer } = require('./template-composer.cjs');
 const { createColdStartSeed } = require('../self-model/cold-start.cjs');
+const linotype = require('../../../../lib/linotype/linotype.cjs');
+
+// ---------------------------------------------------------------------------
+// Template Loading
+// ---------------------------------------------------------------------------
+
+const PROMPTS_DIR = path.join(__dirname, '../../prompts');
+
+function _loadTemplate(filename) {
+  const content = fs.readFileSync(path.join(PROMPTS_DIR, filename), 'utf8');
+  return linotype.parseString(content, filename);
+}
+
+const _facePromptMatrix = _loadTemplate('face-prompt.md');
 
 // ---------------------------------------------------------------------------
 // Constants

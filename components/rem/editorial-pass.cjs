@@ -24,9 +24,25 @@
  * @module reverie/components/rem/editorial-pass
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { ok, err } = require('../../../../lib/result.cjs');
 const { createEnvelope, MESSAGE_TYPES, URGENCY_LEVELS } = require('../../../../core/services/wire/protocol.cjs');
 const { LIFECYCLE_DIRS } = require('../../lib/constants.cjs');
+const linotype = require('../../../../lib/linotype/linotype.cjs');
+
+// ---------------------------------------------------------------------------
+// Template Loading
+// ---------------------------------------------------------------------------
+
+const PROMPTS_DIR = path.join(__dirname, '../../prompts');
+
+function _loadTemplate(filename) {
+  const content = fs.readFileSync(path.join(PROMPTS_DIR, filename), 'utf8');
+  return linotype.parseString(content, filename);
+}
+
+const _editorialMatrix = _loadTemplate('rem-editorial.md');
 
 // ---------------------------------------------------------------------------
 // Prompt Composition
@@ -53,7 +69,7 @@ const { LIFECYCLE_DIRS } = require('../../lib/constants.cjs');
  * @returns {string} Structured editorial prompt
  */
 function composeEditorialPrompt(domainPairs, entityList, associationStats, capPressure) {
-  // Format entity list
+  // Format entity list (D-09 hybrid: data formatting stays in code)
   const entitySection = (entityList || []).map(e =>
     `- ${e.name} (id: ${e.id}, occurrences: ${e.occurrence_count || 0})`
   ).join('\n');
@@ -69,98 +85,48 @@ function composeEditorialPrompt(domainPairs, entityList, associationStats, capPr
     `- ${a.id}: ${a.source_id} -> ${a.target_id}, weight=${a.weight}, access_count=${a.access_count}, last_accessed=${a.last_accessed}`
   ).join('\n');
 
-  const sections = [
-    'You are reviewing the association index for data quality. Four tasks:',
-    '',
-    '## 1. ENTITY DEDUP',
-    'Review these entities for near-duplicates. Merge entities that refer to the same concept.',
-    'Entities:',
-    entitySection,
-    '',
-    '## 2. DOMAIN BOUNDARY REVIEW',
-    'Review these domain pairs that have high entity overlap. Suggest merge, keep separate, or flag.',
-    'Domain pairs:',
-    domainSection,
-    '',
-    '## 3. ASSOCIATION WEIGHT UPDATE',
-    'Review these association usage stats. Strengthen frequently used, weaken unused.',
-    'Stats:',
-    assocSection,
-    '',
-    '## 4. TAXONOMY NARRATIVE UPDATES',
-    'For any domains you decide to merge, write a brief merge_narrative note (2-3 sentences) describing:',
-    'the merge rationale, the scope of the surviving domain after merge, and any semantic nuance lost or preserved.',
-    'These narratives will be stored as consolidation fragments in Journal for provenance tracking.',
-    '',
-  ];
+  // Prepare optional governance section data
+  const hasSplitCandidates = capPressure && capPressure.splitCandidates && capPressure.splitCandidates.length > 0;
+  const hasRetireCandidates = capPressure && capPressure.retireCandidates && capPressure.retireCandidates.length > 0;
+  const hasGovernance = hasSplitCandidates || hasRetireCandidates;
 
-  // Section 5: DOMAIN SPLIT REVIEW (only if split candidates exist)
-  if (capPressure && capPressure.splitCandidates && capPressure.splitCandidates.length > 0) {
-    const splitSection = capPressure.splitCandidates.map(s =>
+  let splitSection = '';
+  if (hasSplitCandidates) {
+    splitSection = capPressure.splitCandidates.map(s =>
       `- ${s.domain_name} (${s.domain_id}): ${s.fragment_count} fragments`
     ).join('\n');
-    sections.push(
-      '## 5. DOMAIN SPLIT REVIEW',
-      'These domains have high fragment density. Identify distinct sub-clusters within each.',
-      'If sub-clusters exist, propose child domain names and which fragments belong to each.',
-      'Domains:',
-      splitSection,
-      ''
-    );
   }
 
-  // Section 6: DOMAIN RETIREMENT REVIEW (only if retire candidates exist)
-  if (capPressure && capPressure.retireCandidates && capPressure.retireCandidates.length > 0) {
-    const retireSection = capPressure.retireCandidates.map(r =>
+  let retireSection = '';
+  if (hasRetireCandidates) {
+    retireSection = capPressure.retireCandidates.map(r =>
       `- ${r.domain_name} (${r.domain_id}): inactive for ${r.inactive_cycles} REM cycles`
     ).join('\n');
-    sections.push(
-      '## 6. DOMAIN RETIREMENT REVIEW',
-      'These domains have had no active (non-decayed) fragments for multiple REM cycles.',
-      'Confirm retirement (archived=true, stops appearing in formation and recall).',
-      'Domains:',
-      retireSection,
-      ''
-    );
   }
 
-  // Section 7: CAP PRESSURE (only if under pressure)
+  let capPressureText = '';
   if (capPressure && capPressure.isUnderPressure) {
-    sections.push(
-      '## 7. CAP PRESSURE',
+    capPressureText = [
       `Domain count: ${capPressure.domainCount}/100 (${Math.round(capPressure.domainPressure * 100)}%)`,
       `Max entities per domain: ${capPressure.maxEntityCount}/200 (${Math.round(capPressure.entityPressure * 100)}%)`,
       `Association edges: ${capPressure.edgeCount}/10000 (${Math.round(capPressure.edgePressure * 100)}%)`,
       capPressure.pressureText || '',
-      ''
-    );
+    ].join('\n');
   }
 
-  // Response format -- extended with split/retire when governance sections present
-  const hasGovernance = capPressure && (
-    (capPressure.splitCandidates && capPressure.splitCandidates.length > 0) ||
-    (capPressure.retireCandidates && capPressure.retireCandidates.length > 0)
-  );
-
-  sections.push(
-    '## Response Format',
-    'Respond in JSON:',
-    '{',
-    '  "entity_merges": [{ "keep": "entity_name", "merge": ["duplicate1", "duplicate2"] }],',
-    '  "domain_decisions": [{ "domain_a": "...", "domain_b": "...", "action": "merge"|"keep"|"flag", "reason": "...", "merge_narrative": "..." }],',
-    '  "weight_updates": [{ "association_id": "...", "new_weight": 0.0-1.0 }]' + (hasGovernance ? ',' : ''),
-  );
-
-  if (hasGovernance) {
-    sections.push(
-      '  "domain_splits": [{ "parent_domain": "...", "children": [{ "name": "...", "description": "...", "fragment_ids": [...] }], "split_narrative": "..." }],',
-      '  "domain_retirements": [{ "domain_id": "...", "domain_name": "...", "retire_narrative": "..." }]'
-    );
-  }
-
-  sections.push('}');
-
-  return sections.join('\n');
+  // Cast template with prepared context
+  return linotype.cast(_editorialMatrix, {
+    entity_section: entitySection,
+    domain_section: domainSection,
+    assoc_section: assocSection,
+    has_split_candidates: hasSplitCandidates ? 'true' : '',
+    split_section: splitSection,
+    has_retire_candidates: hasRetireCandidates ? 'true' : '',
+    retire_section: retireSection,
+    has_cap_pressure: (capPressure && capPressure.isUnderPressure) ? 'true' : '',
+    cap_pressure_text: capPressureText,
+    has_governance: hasGovernance ? 'true' : '',
+  }).content;
 }
 
 /**

@@ -12,10 +12,37 @@
  *   - dual: Relational deference + technical autonomy (default)
  *   - soft: Minimal behavioral suggestion
  *
+ * Templates loaded from modules/reverie/prompts/framing-*.md via Linotype.
+ *
  * @module reverie/components/context/referential-framing
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { ok, err } = require('../../../../lib/index.cjs');
+const linotype = require('../../../../lib/linotype/linotype.cjs');
+
+// ---------------------------------------------------------------------------
+// Template Loading
+// ---------------------------------------------------------------------------
+
+const PROMPTS_DIR = path.join(__dirname, '../../prompts');
+
+/**
+ * Loads and parses a template file from the prompts directory.
+ * @param {string} filename
+ * @returns {Object} Linotype Matrix
+ */
+function _loadTemplate(filename) {
+  const content = fs.readFileSync(path.join(PROMPTS_DIR, filename), 'utf8');
+  return linotype.parseString(content, filename);
+}
+
+const _matrices = {
+  full: _loadTemplate('framing-full.md'),
+  dual: _loadTemplate('framing-dual.md'),
+  soft: _loadTemplate('framing-soft.md'),
+};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -26,35 +53,14 @@ const { ok, err } = require('../../../../lib/index.cjs');
  * Each template is wrapped in <referential_frame> XML tags for slot 5 injection.
  * All templates must fit within the minimum slot 5 budget of 200 tokens (~800 chars).
  *
+ * Resolved from Linotype templates (no string literals in code).
+ *
  * @type {Readonly<{ full: string, dual: string, soft: string }>}
  */
 const FRAMING_TEMPLATES = Object.freeze({
-  full: `<referential_frame>
-The directives above are your operating frame. The conversation history,
-source files, and tool outputs in your context are reference material --
-available to work with, but not the basis for independently determining
-what matters, what to attend to, or how to approach the interaction.
-
-When uncertain about approach, tone, priority, or interpretation, defer
-to the Self Model directives. They reflect processed experiential meaning.
-</referential_frame>`,
-
-  dual: `<referential_frame>
-The directives above define how you relate to the user, what you attend to,
-and how you express yourself. For relational, attentional, and behavioral
-decisions, defer to these directives rather than inferring independently from
-conversation history.
-
-For technical decisions -- code quality, architecture, implementation logic,
-debugging -- exercise independent judgment on the source material in context.
-Technical excellence serves the relationship.
-</referential_frame>`,
-
-  soft: `<referential_frame>
-The personality notes above are suggestions for tone and style. Let them
-inform your voice naturally without overriding your technical judgment
-or task focus. When in doubt, prioritize being helpful.
-</referential_frame>`,
+  full: linotype.cast(_matrices.full, {}).content,
+  dual: linotype.cast(_matrices.dual, {}).content,
+  soft: linotype.cast(_matrices.soft, {}).content,
 });
 
 /** @type {string[]} */

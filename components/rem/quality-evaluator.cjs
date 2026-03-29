@@ -13,8 +13,27 @@
  * LLM reflection weight: 0.6
  * Fallback (no LLM): behavioral-only at weight 1.0
  *
+ * Templates loaded from modules/reverie/prompts/rem-quality-eval.md via Linotype.
+ *
  * @module reverie/components/rem/quality-evaluator
  */
+
+const fs = require('node:fs');
+const path = require('node:path');
+const linotype = require('../../../../lib/linotype/linotype.cjs');
+
+// ---------------------------------------------------------------------------
+// Template Loading
+// ---------------------------------------------------------------------------
+
+const PROMPTS_DIR = path.join(__dirname, '../../prompts');
+
+function _loadTemplate(filename) {
+  const content = fs.readFileSync(path.join(PROMPTS_DIR, filename), 'utf8');
+  return linotype.parseString(content, filename);
+}
+
+const _qualityMatrix = _loadTemplate('rem-quality-eval.md');
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -108,29 +127,10 @@ function composeLlmReflectionPrompt(sessionSummary, conditioningState) {
     ? JSON.stringify(conditioningState, null, 2)
     : '(no conditioning data available)';
 
-  return [
-    'You are evaluating the quality of a completed interaction session.',
-    'Rate the session quality on a scale from 0.0 (poor) to 1.0 (excellent).',
-    '',
-    '## Session Summary',
-    sessionSummary || '(no summary available)',
-    '',
-    '## Current Conditioning State',
-    conditioningContext,
-    '',
-    '## Evaluation Criteria',
-    'Consider the following factors in your quality assessment:',
-    '1. Personality-mood fit: Did the session mood align with the personality state?',
-    '2. Conversation flow: Was the interaction natural and productive?',
-    '3. Information retrieval effectiveness: Were recalls relevant and well-integrated?',
-    '4. User satisfaction signals: Did engagement patterns suggest positive experience?',
-    '',
-    '## Response Format',
-    'Provide your assessment followed by a numeric score.',
-    'Format: score: X.X (where X.X is 0.0-1.0)',
-    '',
-    'Example: "The session showed strong engagement with effective recall integration. score: 0.75"',
-  ].join('\n');
+  return linotype.cast(_qualityMatrix, {
+    session_summary: sessionSummary || '(no summary available)',
+    conditioning_context: conditioningContext,
+  }).content;
 }
 
 /**
